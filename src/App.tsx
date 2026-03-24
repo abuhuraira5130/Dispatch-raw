@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Shield,
   Search,
@@ -35,20 +35,97 @@ import {
   Key,
   Plus,
   Cpu,
-  CheckCircle2
+  CheckCircle2,
+  Image,
+  Sparkles,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { analyzeVideo, checkApiQuota, fetchVideoMetadataFromGemini, type VideoAnalysisResult, type ProgressStep, type ApiQuotaInfo } from './services/geminiService';
-import { analyzeWithGroq, checkGroqQuota } from './services/groqService';
+import {
+  analyzeVideo,
+  checkApiQuota,
+  fetchVideoMetadataFromGemini,
+  generateShortsClipPlan,
+  generateProfessionalThumbnailPrompt,
+  generateThumbnailSuggestions,
+  type VideoAnalysisResult,
+  type ProgressStep,
+  type ApiQuotaInfo,
+  type ThumbnailSettingsInput,
+  type ThumbnailSuggestion,
+} from './services/geminiService';
+import { analyzeWithGroq, checkGroqQuota, generateShortsClipPlanWithGroq, generateThumbnailSuggestionsWithGroq } from './services/groqService';
 import { fetchBasicYoutubeInfo } from './services/youtubeInfoService';
 
 
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+interface SeoQualityScore {
+  overall: number;
+  titleStrength: number;
+  hashtagDiversity: number;
+  policySafety: number;
+  insights: string[];
+}
+
+type ThumbnailStyleOption = ThumbnailSettingsInput['style'];
+type ThumbnailRatioOption = ThumbnailSettingsInput['ratio'];
+type ThumbnailToneOption = ThumbnailSettingsInput['tone'];
+type ThumbnailTextDensityOption = ThumbnailSettingsInput['textDensity'];
+type ThumbnailFontStyleOption = ThumbnailSettingsInput['fontStyle'];
+
+function inferThumbnailDefaults(url: string, data: VideoAnalysisResult): ThumbnailSettingsInput {
+  const contextText = `${data.summaryEnglish} ${data.summaryUrdu} ${data.titles.join(' ')} ${data.tags}`.toLowerCase();
+  const isShortsUrl = /\/shorts\//i.test(url);
+  const style: ThumbnailStyleOption = /animation|anime|cartoon|kids|comic/.test(contextText)
+    ? 'cartoon'
+    : /bodycam|police|law|incident|arrest|crime|investigation/.test(contextText)
+      ? 'realistic'
+      : 'cinematic';
+
+  const tone: ThumbnailToneOption = /shocking|danger|caught|critical|arrest|crime|alert|exposed/.test(contextText)
+    ? 'urgent'
+    : /secret|truth|revealed|unseen|mystery/.test(contextText)
+      ? 'mystery'
+      : 'authority';
+
+  const textDensity: ThumbnailTextDensityOption = /shorts|reel|quick|fast/.test(contextText)
+    ? 'minimal'
+    : 'balanced';
+
+  return {
+    ratio: isShortsUrl ? '9:16' : '16:9',
+    style,
+    tone,
+    textDensity,
+    fontStyle: 'default',
+    quality: 'high',
+    filters: {
+      brightness: 0,
+      contrast: 0,
+      saturation: 0,
+      vibrance: 0,
+    },
+  };
+}
+
+type KeyProvider = 'gemini' | 'groq' | 'unknown';
+
+function inferKeyProvider(apiKey: string): KeyProvider {
+  const key = apiKey.trim();
+  if (/^AIza[\w-]{20,}$/.test(key)) return 'gemini';
+  if (/^gsk_[\w-]{20,}$/.test(key)) return 'groq';
+  return 'unknown';
+}
+
+function modelProvider(modelId: string): Exclude<KeyProvider, 'unknown'> {
+  return modelId.startsWith('llama') ? 'groq' : 'gemini';
 }
 
 const Skeleton = ({ className }: { className?: string }) => (
@@ -73,15 +150,20 @@ const LoadingResults = ({ step }: { step: string | null }) => {
       <div className="flex flex-col items-center justify-center py-6 gap-3">
         <div className="flex items-center gap-2">
           <Loader2 className="w-5 h-5 text-red-500 animate-spin" />
-          <span className="text-xl font-bold tracking-tighter uppercase text-zinc-900 dark:text-zinc-100">{getStepText()}</span>
+          <span className="text-base sm:text-xl font-bold tracking-tighter uppercase text-zinc-900 dark:text-zinc-100 text-center">{getStepText()}</span>
         </div>
-        <div className="w-64 h-1.5 bg-zinc-200 dark:bg-zinc-50 dark:bg-black rounded-full overflow-hidden border border-zinc-300 dark:border-zinc-800">
+        <div className="w-56 sm:w-64 h-1.5 bg-zinc-200 dark:bg-zinc-50 dark:bg-black rounded-full overflow-hidden border border-zinc-300 dark:border-zinc-800">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: "100%" }}
             transition={{ duration: 15, ease: "linear" }}
             className="h-full bg-red-600 shadow-[0_0_10px_rgba(239,68,68,0.5)]"
           />
+        </div>
+        <div className="smooth-loader-wave" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
         </div>
       </div>
 
@@ -216,6 +298,8 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 
 export default function App() {
   const [url, setUrl] = useState('');
+  const [channelName, setChannelName] = useState<string>(() => localStorage.getItem('dispatch_channel_name') || '');
+  const [channelDraft, setChannelDraft] = useState<string>(() => localStorage.getItem('dispatch_channel_name') || '');
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState<ProgressStep | null>(null);
   const [result, setResult] = useState<VideoAnalysisResult | null>(null);
@@ -223,6 +307,39 @@ export default function App() {
   const [summaryLang, setSummaryLang] = useState<'en' | 'ur'>('en');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<string, 'up' | 'down' | null>>({});
+  const [thumbnailSettings, setThumbnailSettings] = useState<ThumbnailSettingsInput>({
+    ratio: '16:9',
+    style: 'realistic',
+    tone: 'authority',
+    textDensity: 'balanced',
+    fontStyle: 'default',
+    quality: 'high',
+    filters: {
+      brightness: 0,
+      contrast: 0,
+      saturation: 0,
+      vibrance: 0,
+    },
+  });
+  const [thumbnailSuggestion, setThumbnailSuggestion] = useState<ThumbnailSuggestion | null>(null);
+  const [generatingThumbnails, setGeneratingThumbnails] = useState(false);
+  const [generatingFinalThumbnail, setGeneratingFinalThumbnail] = useState(false);
+  const [thumbnailError, setThumbnailError] = useState<string | null>(null);
+  const [thumbnailFinalUrl, setThumbnailFinalUrl] = useState<string | null>(null);
+  const [thumbnailPromptText, setThumbnailPromptText] = useState<string | null>(null);
+  const [thumbnailUsedHooks, setThumbnailUsedHooks] = useState<string[]>([]);
+  
+  // Post-generation filter adjustment state
+  const [thumbnailAdjustedFilters, setThumbnailAdjustedFilters] = useState({
+    brightness: 0,
+    contrast: 0,
+    saturation: 0,
+    vibrance: 0,
+  });
+  const [thumbnailAdjustedUrl, setThumbnailAdjustedUrl] = useState<string | null>(null);
+  const [shortsTargetSeconds, setShortsTargetSeconds] = useState<number>(45);
+  const [generatingClipPlan, setGeneratingClipPlan] = useState(false);
+  const [clipPlanError, setClipPlanError] = useState<string | null>(null);
 
   const [savedItems, setSavedItems] = useState<any[]>(() => {
     const saved = localStorage.getItem('dispatch_saved_vault');
@@ -241,6 +358,7 @@ export default function App() {
 
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   // Auto-save state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -254,9 +372,21 @@ export default function App() {
   const [historySearch, setHistorySearch] = useState('');
   const [showApiSettings, setShowApiSettings] = useState(false);
 
-  const [apiKeys, setApiKeys] = useState<{ id: string, name: string, key: string, active: boolean }[]>(() => {
+  const [apiKeys, setApiKeys] = useState<{ id: string, name: string, key: string, active: boolean, provider?: KeyProvider }[]>(() => {
     const saved = localStorage.getItem('dispatch_gemini_keys');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed)
+          ? parsed.map((item: any) => ({
+              ...item,
+              provider: item.provider || inferKeyProvider(item.key || ''),
+            }))
+          : [];
+      } catch {
+        return [];
+      }
+    }
     return [];
   });
 
@@ -279,7 +409,40 @@ export default function App() {
     localStorage.setItem('dispatch_selected_model', selectedModel);
   }, [selectedModel]);
 
+  useEffect(() => {
+    if (apiKeys.length === 0) return;
+    const required = modelProvider(selectedModel);
+    const active = apiKeys.find((k) => k.active);
+    if (!active) return;
+
+    const activeProvider = active.provider || inferKeyProvider(active.key);
+    if (activeProvider === required) return;
+
+    const fallback = apiKeys.find((k) => (k.provider || inferKeyProvider(k.key)) === required);
+    if (!fallback) {
+      setError(`⚠️ Selected model requires ${required.toUpperCase()} key. Add one in API settings.`);
+      return;
+    }
+
+    setApiKeys((prev) => prev.map((k) => ({ ...k, active: k.id === fallback.id })));
+  }, [selectedModel, apiKeys]);
+
   const handleCheckQuota = async (keyId: string, apiKey: string) => {
+    const requiredProvider = modelProvider(selectedModel);
+    const detectedProvider = inferKeyProvider(apiKey);
+
+    if (detectedProvider !== 'unknown' && detectedProvider !== requiredProvider) {
+      setQuotaInfo(prev => ({
+        ...prev,
+        [keyId]: {
+          status: 'invalid',
+          message: `This looks like a ${detectedProvider.toUpperCase()} key, but selected model requires ${requiredProvider.toUpperCase()} key.`,
+          model: selectedModel,
+        }
+      }));
+      return;
+    }
+
     setCheckingQuota(keyId);
     const isGroq = selectedModel.startsWith('llama');
     const info = (isGroq
@@ -304,6 +467,10 @@ export default function App() {
     return 'dark';
   });
 
+  const [isLowPerformanceDevice, setIsLowPerformanceDevice] = useState(false);
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
+  const [scrollDepth, setScrollDepth] = useState(0);
+
   useEffect(() => {
     localStorage.setItem('dispatch_saved_vault', JSON.stringify(savedItems));
   }, [savedItems]);
@@ -321,6 +488,67 @@ export default function App() {
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!channelName) return;
+    localStorage.setItem('dispatch_channel_name', channelName);
+  }, [channelName]);
+
+  useEffect(() => {
+    if (!channelName) return;
+    setChannelDraft(channelName);
+  }, [channelName]);
+
+  useEffect(() => {
+    if (!result) return;
+    setThumbnailSettings(inferThumbnailDefaults(url, result));
+    setThumbnailSuggestion(null);
+    setThumbnailFinalUrl(null);
+    setThumbnailUsedHooks([]);
+    setThumbnailError(null);
+    setClipPlanError(null);
+    const clipTotal = (result.shortsClipPlan || []).reduce((sum, clip) => sum + (Number(clip.durationSeconds) || 0), 0);
+    if (clipTotal >= 15) {
+      setShortsTargetSeconds(clipTotal);
+    }
+  }, [result, url]);
+
+  useEffect(() => {
+    const detectProfile = () => {
+      const nav = navigator as Navigator & { deviceMemory?: number };
+      const memory = nav.deviceMemory ?? 8;
+      const cores = nav.hardwareConcurrency ?? 8;
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const compact = window.innerWidth < 768;
+
+      setIsCompactViewport(compact);
+      setIsLowPerformanceDevice(reducedMotion || memory <= 4 || cores <= 4 || compact);
+    };
+
+    detectProfile();
+    window.addEventListener('resize', detectProfile);
+    return () => window.removeEventListener('resize', detectProfile);
+  }, []);
+
+  useEffect(() => {
+    const updateDepth = () => {
+      const depth = Math.min(window.scrollY / 220, 1);
+      setScrollDepth(depth);
+    };
+
+    updateDepth();
+    window.addEventListener('scroll', updateDepth, { passive: true });
+    return () => window.removeEventListener('scroll', updateDepth);
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    root.style.setProperty('--scroll-depth', scrollDepth.toString());
+    root.style.setProperty('--motion-factor', isLowPerformanceDevice ? '0.72' : '1');
+    root.style.setProperty('--beam-opacity', `${Math.min(1, 0.7 + scrollDepth * 0.28)}`);
+    root.style.setProperty('--blob-scale', `${1 + scrollDepth * 0.08}`);
+  }, [scrollDepth, isLowPerformanceDevice]);
 
 
 
@@ -467,6 +695,11 @@ export default function App() {
 
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!channelName.trim()) {
+      setShowProfile(true);
+      setError("⚠️ Please set your channel name in Profile before analyzing.");
+      return;
+    }
     const trimmedUrl = url.trim();
     if (!trimmedUrl) return;
 
@@ -487,6 +720,10 @@ export default function App() {
     setLoadingStep('initializing');
     setError(null);
     setResult(null);
+    setThumbnailSuggestion(null);
+    setThumbnailFinalUrl(null);
+    setThumbnailUsedHooks([]);
+    setThumbnailError(null);
 
     const keyToUse = apiKeys.find(k => k.active)?.key?.trim();
     try {
@@ -497,6 +734,14 @@ export default function App() {
       const keyToUse = apiKeys.find(k => k.active)?.key || '';
       if (!keyToUse) {
         setError("⚠️ API Key Missing: Please activate a key in Settings.");
+        setLoading(false);
+        return;
+      }
+
+      const detectedProvider = inferKeyProvider(keyToUse);
+      const requiredProvider = modelProvider(selectedModel);
+      if (detectedProvider !== 'unknown' && detectedProvider !== requiredProvider) {
+        setError(`⚠️ Model mismatch: selected model expects ${requiredProvider.toUpperCase()} key, but active key looks like ${detectedProvider.toUpperCase()}.`);
         setLoading(false);
         return;
       }
@@ -530,12 +775,12 @@ export default function App() {
 
       if (isGroq) {
         setLoadingStep('generating');
-        data = await analyzeWithGroq(trimmedUrl, keyToUse, selectedModel, metaContent);
+        data = await analyzeWithGroq(trimmedUrl, keyToUse, selectedModel, metaContent, channelName.trim());
       } else {
         setLoadingStep('analyzing');
         data = await analyzeVideo(trimmedUrl, keyToUse, (step) => {
           setLoadingStep(step);
-        }, selectedModel);
+        }, selectedModel, channelName.trim());
       }
 
       if (data && (data.summaryEnglish || data.summaryUrdu)) {
@@ -619,16 +864,348 @@ export default function App() {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
+  const handleGenerateThumbnailSuggestion = async (mode: 'fresh' | 'another' = 'fresh') => {
+    if (!result) return;
+
+    const keyToUse = apiKeys.find(k => k.active)?.key?.trim();
+    if (!keyToUse) {
+      setThumbnailError('⚠️ Add and activate an API key first to generate thumbnail suggestions.');
+      return;
+    }
+
+    const provider = modelProvider(selectedModel);
+    const detectedProvider = inferKeyProvider(keyToUse);
+    if (detectedProvider !== 'unknown' && detectedProvider !== provider) {
+      setThumbnailError(`⚠️ Active key looks like ${detectedProvider.toUpperCase()}, but selected model requires ${provider.toUpperCase()}.`);
+      return;
+    }
+
+    setGeneratingThumbnails(true);
+    setThumbnailError(null);
+    if (mode === 'fresh') {
+      setThumbnailUsedHooks([]);
+    }
+
+    try {
+      const payload = {
+        videoUrl: url.trim(),
+        channelName: channelName.trim() || 'Dispatch Raw',
+        primaryTitle: result.titles?.[0] || 'Viral incident breakdown',
+        summary: result.summaryEnglish || result.summaryUrdu || '',
+        description: result.description || '',
+        tags: result.tags || '',
+        settings: thumbnailSettings,
+        avoidHooks: mode === 'another' ? thumbnailUsedHooks : [],
+      };
+
+      const generated = provider === 'groq'
+        ? await generateThumbnailSuggestionsWithGroq(keyToUse, selectedModel, payload)
+        : await generateThumbnailSuggestions(keyToUse, selectedModel, payload);
+
+      if (!generated?.visualPrompt) {
+        setThumbnailError('No thumbnail concepts were generated. Try changing style or tone and generate again.');
+        return;
+      }
+
+      setThumbnailSuggestion(generated);
+      setThumbnailPromptText(null); // Clear old prompt
+      
+      const marker = `${generated.title} ${generated.hookText}`.trim();
+      if (marker) {
+        setThumbnailUsedHooks((prev) => {
+          const base = mode === 'fresh' ? [] : prev;
+          return [...base, marker].slice(-8);
+        });
+      }
+
+      // Auto-generate professional prompt after concept is ready
+      try {
+        const professionalPrompt = await generateProfessionalThumbnailPrompt({
+          channelName: channelName.trim() || 'Dispatch Raw',
+          settings: thumbnailSettings,
+          concept: generated,
+          contextTitle: result?.titles?.[0] || generated.title,
+          contextSummary: result?.summaryEnglish || result?.summaryUrdu || '',
+        });
+        setThumbnailPromptText(professionalPrompt);
+        setThumbnailFinalUrl(null);
+      } catch (promptErr: any) {
+        console.warn('Prompt generation failed but concept was generated:', promptErr);
+        // Continue anyway - concept is still useful
+      }
+    } catch (err: any) {
+      setThumbnailError(err?.message || 'Failed to generate thumbnail suggestions. Please try again.');
+    } finally {
+      setGeneratingThumbnails(false);
+    }
+  };
+
+  const handleGenerateClipPlan = async () => {
+    if (!result) return;
+
+    const target = Math.max(15, Math.min(180, Math.round(Number(shortsTargetSeconds) || 0)));
+    if (!target) {
+      setClipPlanError('Please enter target duration in seconds.');
+      return;
+    }
+
+    const keyToUse = apiKeys.find(k => k.active)?.key?.trim();
+    if (!keyToUse) {
+      setClipPlanError('Add and activate an API key first to generate clip plan.');
+      return;
+    }
+
+    const provider = modelProvider(selectedModel);
+    const detectedProvider = inferKeyProvider(keyToUse);
+    if (detectedProvider !== 'unknown' && detectedProvider !== provider) {
+      setClipPlanError(`Active key looks like ${detectedProvider.toUpperCase()}, but selected model requires ${provider.toUpperCase()}.`);
+      return;
+    }
+
+    setGeneratingClipPlan(true);
+    setClipPlanError(null);
+    setResult((prev) => prev ? { ...prev, shortsClipPlan: [] } : prev);
+
+    try {
+      const payload = {
+        videoUrl: url.trim(),
+        channelName: channelName.trim() || 'Dispatch Raw',
+        primaryTitle: result.titles?.[0] || 'Video timeline',
+        summary: result.summaryEnglish || result.summaryUrdu || '',
+        description: result.description || '',
+        targetDurationSeconds: target,
+      };
+
+      const plan = provider === 'groq'
+        ? await generateShortsClipPlanWithGroq(keyToUse, selectedModel, payload)
+        : await generateShortsClipPlan(keyToUse, selectedModel, payload);
+
+      setResult((prev) => prev ? { ...prev, shortsClipPlan: plan } : prev);
+      setShortsTargetSeconds(target);
+    } catch (err: any) {
+      const rawMessage = String(err?.message || 'Failed to generate clip plan. Please try again.');
+      const isTranscriptIssue = /transcript|caption/i.test(rawMessage);
+      const userMessage = isTranscriptIssue
+        ? 'Clip plan generate nahi ho saka: is video ka transcript/caption available nahi hai, isliye exact timeline extraction block ki gayi hai.'
+        : rawMessage;
+
+      setResult((prev) => prev ? { ...prev, shortsClipPlan: [] } : prev);
+      setClipPlanError(userMessage);
+
+      if (isTranscriptIssue && typeof window !== 'undefined') {
+        window.alert(userMessage);
+      }
+    } finally {
+      setGeneratingClipPlan(false);
+    }
+  };
+
+  const getPreviewSize = (ratio: ThumbnailRatioOption): { width: number; height: number } => {
+    if (ratio === '9:16') return { width: 720, height: 1280 };
+    if (ratio === '1:1') return { width: 1080, height: 1080 };
+    return { width: 1280, height: 720 };
+  };
+
+  const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+    img.src = src;
+  });
+
+  const handleGenerateFinalThumbnail = async (suggestion: ThumbnailSuggestion) => {
+    try {
+      setGeneratingFinalThumbnail(true);
+      setThumbnailError(null);
+      
+      // Generate professional 8K prompt
+      const professionalPrompt = await generateProfessionalThumbnailPrompt({
+        channelName: channelName.trim() || 'Dispatch Raw',
+        settings: thumbnailSettings,
+        concept: suggestion,
+        contextTitle: result?.titles?.[0] || suggestion.title,
+        contextSummary: result?.summaryEnglish || result?.summaryUrdu || '',
+      });
+      
+      setThumbnailPromptText(professionalPrompt);
+      setThumbnailFinalUrl(null);
+      setThumbnailAdjustedUrl(null);
+      setThumbnailAdjustedFilters({ brightness: 0, contrast: 0, saturation: 0, vibrance: 0 });
+      setThumbnailUsedHooks([...thumbnailUsedHooks, suggestion.hookText]);
+    } catch (err: any) {
+      setThumbnailError(err?.message || 'Failed to generate thumbnail prompt.');
+    } finally {
+      setGeneratingFinalThumbnail(false);
+    }
+  };
+
+  const handleDownloadThumbnail = () => {
+    if (!thumbnailFinalUrl) return;
+    const a = document.createElement('a');
+    a.href = thumbnailAdjustedUrl || thumbnailFinalUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.download = `thumbnail-${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const applyFiltersToThumbnail = async (imageUrl: string, filters: typeof thumbnailAdjustedFilters) => {
+    try {
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = imageUrl;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas context unavailable');
+
+      // Apply filters as CSS filter string
+      const brightnessVal = 1 + (filters.brightness / 100);
+      const contrastVal = 1 + (filters.contrast / 100);
+      const saturationVal = 1 + (filters.saturation / 100);
+      const vibranceVal = 1 + (filters.vibrance / 120);
+      const filterString = `brightness(${brightnessVal}) contrast(${contrastVal}) saturate(${saturationVal * vibranceVal})`;
+      
+      ctx.filter = filterString;
+      ctx.drawImage(img, 0, 0);
+      ctx.filter = 'none';
+
+      return canvas.toDataURL('image/png', 0.96);
+    } catch (err) {
+      console.error('Filter application failed:', err);
+      return imageUrl;
+    }
+  };
+
+  const handleFilterChange = async (filterType: keyof typeof thumbnailAdjustedFilters, value: number) => {
+    if (!thumbnailFinalUrl) return;
+
+    const newFilters = { ...thumbnailAdjustedFilters, [filterType]: value };
+    setThumbnailAdjustedFilters(newFilters);
+
+    // Apply filters to image
+    const adjustedUrl = await applyFiltersToThumbnail(thumbnailFinalUrl, newFilters);
+    setThumbnailAdjustedUrl(adjustedUrl);
+  };
+
+  const handleSaveAdjustedThumbnail = () => {
+    if (!thumbnailAdjustedUrl) return;
+    // Replace original with adjusted
+    setThumbnailFinalUrl(thumbnailAdjustedUrl);
+    setThumbnailAdjustedUrl(null);
+    setThumbnailAdjustedFilters({ brightness: 0, contrast: 0, saturation: 0, vibrance: 0 });
+  };
+
+  const seoQuality = useMemo<SeoQualityScore | null>(() => {
+    if (!result) return null;
+
+    const titles = result.titles ?? [];
+    const titleHashtagCounts = titles.map((title) => (title.match(/#[A-Za-z0-9_]+/g) || []).length);
+    const strongLengthTitles = titles.filter((title) => {
+      const len = title.trim().length;
+      return len >= 45 && len <= 95;
+    }).length;
+    const curiosityHooks = titles.filter((title) => /(shocking|revealed|caught|truth|secret|proof|must watch|viral|unseen|exposed|danger)/i.test(title)).length;
+    const titleStrength = Math.max(0, Math.min(100,
+      Math.round(
+        ((Math.min(titles.length, 3) / 3) * 35) +
+        ((strongLengthTitles / Math.max(1, titles.length)) * 35) +
+        ((curiosityHooks / Math.max(1, titles.length)) * 20) +
+        ((titleHashtagCounts.filter((c) => c >= 2).length / Math.max(1, titles.length)) * 10)
+      )
+    ));
+
+    const descriptionHashtags = result.description.match(/#[A-Za-z0-9_]+/g) || [];
+    const tagList = result.tags
+      .split(',')
+      .map((tag) => tag.trim().toLowerCase())
+      .filter(Boolean);
+    const uniqueHashtags = new Set(descriptionHashtags.map((tag) => tag.toLowerCase()));
+    const uniqueTags = new Set(tagList);
+    const hashtagDiversity = Math.max(0, Math.min(100,
+      Math.round(
+        (Math.min(uniqueHashtags.size, 16) / 16) * 45 +
+        (Math.min(uniqueTags.size, 25) / 25) * 40 +
+        ((uniqueTags.size > 0 ? Math.min(uniqueHashtags.size / uniqueTags.size, 1) : 0) * 15)
+      )
+    ));
+
+    const riskyPattern = /(blood|gore|kill|murder|execution|suicide|terror|graphic violence|nsfw)/i;
+    const safetyText = `${result.description}\n${titles.join('\n')}`;
+    const hasRiskyTerms = riskyPattern.test(safetyText);
+    const hasDisclaimer = /disclaimer/i.test(result.description);
+    const policySafety = Math.max(0, Math.min(100,
+      (hasDisclaimer ? 80 : 50) + (hasRiskyTerms ? -20 : 20)
+    ));
+
+    const overall = Math.round((titleStrength * 0.4) + (hashtagDiversity * 0.35) + (policySafety * 0.25));
+    const insights: string[] = [];
+    insights.push(titleStrength >= 75 ? 'Titles are strong for CTR with good hook quality.' : 'Strengthen title hooks and keep each title around 45-95 chars.');
+    insights.push(hashtagDiversity >= 70 ? 'Hashtag and tag spread is healthy for discoverability.' : 'Increase unique hashtags in description and diversify hidden tags.');
+    insights.push(policySafety >= 80 ? 'Policy-safety language looks healthy for broader distribution.' : 'Improve compliance wording and keep disclaimer clearly visible.');
+
+    return {
+      overall,
+      titleStrength,
+      hashtagDiversity,
+      policySafety,
+      insights,
+    };
+  }, [result]);
+
+  const clipPlanStats = useMemo(() => {
+    const clips = result?.shortsClipPlan || [];
+    const total = clips.reduce((sum, clip) => sum + (Number(clip.durationSeconds) || 0), 0);
+    const delta = Math.abs(total - shortsTargetSeconds);
+    return {
+      total,
+      delta,
+      isAligned: clips.length > 0 && delta <= 1,
+    };
+  }, [result, shortsTargetSeconds]);
+
+  const updateChannelName = () => {
+    const normalized = channelDraft.trim();
+    if (!normalized) return;
+    setChannelName(normalized);
+    setError(null);
+  };
+
+  const clearChannelName = () => {
+    localStorage.removeItem('dispatch_channel_name');
+    setChannelName('');
+    setChannelDraft('');
+  };
+
   return (
     <ErrorBoundary>
-      <div className={cn("min-h-screen pb-20 transition-all", theme === 'dark' ? "bg-black dark" : "bg-white")}>
+      <div
+        className={cn(
+          "min-h-screen pb-20 transition-all adaptive-shell",
+          theme === 'dark' ? "bg-black dark" : "bg-white",
+          isCompactViewport ? "is-compact-viewport" : "is-wide-viewport",
+          isLowPerformanceDevice ? "is-low-perf" : "is-high-perf"
+        )}
+      >
         {/* Premium 'Neural' Header with Animated Background */}
         <header className={cn(
-          "sticky top-0 z-50 border-b transition-all duration-700 backdrop-blur-3xl overflow-hidden relative isolate",
+          "sticky top-0 z-50 border-b transition-all duration-700 backdrop-blur-xl overflow-hidden relative isolate",
           theme === 'dark' ? "border-white/5 bg-black/40" : "border-zinc-200/50 bg-white/40"
         )}>
           {/* Beautiful Animated Background Container */}
-          <div className="header-animated-bg">
+          <div className="header-animated-bg style-final">
+            <div className="header-energy-beam"></div>
+
             {/* Floating colored blobs */}
             <div className="header-blob-red"></div>
             <div className="header-blob-blue"></div>
@@ -642,20 +1219,20 @@ export default function App() {
             <div className="header-glow-top"></div>
             <div className="header-glow-bottom"></div>
           </div>
-          <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between relative z-10">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl police-gradient flex items-center justify-center p-0.5 shadow-2xl shadow-red-500/20 active:scale-95 transition-all">
-                <div className={cn("w-full h-full rounded-[14px] flex items-center justify-center transition-colors", theme === 'dark' ? "bg-black" : "bg-white")}>
-                  <Shield className="text-red-600 dark:text-red-500 w-7 h-7 fill-red-500/10" />
+          <div className="max-w-7xl mx-auto px-3 sm:px-4 h-16 sm:h-20 flex items-center justify-between relative z-10">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+              <div className="app-logo-shell w-10 h-10 sm:w-12 sm:h-12 rounded-2xl police-gradient flex items-center justify-center p-0.5 active:scale-95 transition-all shrink-0">
+                <div className={cn("app-logo-core w-full h-full rounded-[14px] flex items-center justify-center transition-colors", theme === 'dark' ? "bg-black" : "bg-white")}>
+                  <Shield className="app-logo-mark text-red-600 dark:text-red-500 w-6 h-6 sm:w-7 sm:h-7 fill-red-500/10" />
                 </div>
               </div>
-              <div>
-                <h1 className="font-bold text-2xl tracking-tighter uppercase text-black dark:text-white leading-none">Dispatch <span className="text-red-600 dark:text-red-500">Raw</span></h1>
-                <p className="text-[10px] text-zinc-600 dark:text-zinc-400 font-mono uppercase tracking-[0.3em] mt-1 font-bold">Strategic Intelligence Agency</p>
+              <div className="min-w-0">
+                <h1 className="font-bold text-lg sm:text-2xl tracking-tighter uppercase text-black dark:text-white leading-none truncate">Dispatch <span className="text-red-600 dark:text-red-500">Raw</span></h1>
+                <p className="hidden sm:block text-[10px] text-zinc-600 dark:text-zinc-400 font-mono uppercase tracking-[0.3em] mt-1 font-bold">Strategic Intelligence Agency</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2 sm:gap-6">
               <div className="hidden sm:flex items-center gap-4 text-xs font-mono text-zinc-400">
                 <div className="flex items-center gap-2">
                   <div className="pulsating-dot" />
@@ -663,7 +1240,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="header-action-row flex items-center gap-1 sm:gap-3">
                 <button
                   onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                   className="p-2 rounded-lg bg-white dark:bg-black/50 border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition-all flex items-center justify-center"
@@ -672,9 +1249,9 @@ export default function App() {
                   {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                 </button>
                 <button
-                  onClick={() => { setShowApiSettings(!showApiSettings); setShowHistory(false); setShowSaved(false); }}
+                  onClick={() => { setShowApiSettings(!showApiSettings); setShowHistory(false); setShowSaved(false); setShowProfile(false); }}
                   className={cn(
-                    "p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
+                    "p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
                     showApiSettings
                       ? "bg-blue-600 text-white shadow-blue-500/20"
                       : "bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-400 hover:bg-blue-600 hover:text-white"
@@ -685,9 +1262,9 @@ export default function App() {
                   <span className="hidden lg:inline">API</span>
                 </button>
                 <button
-                  onClick={() => { setShowSaved(!showSaved); setShowHistory(false); setShowApiSettings(false); }}
+                  onClick={() => { setShowSaved(!showSaved); setShowHistory(false); setShowApiSettings(false); setShowProfile(false); }}
                   className={cn(
-                    "p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
+                    "p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
                     showSaved
                       ? "bg-purple-600 text-white shadow-purple-500/20"
                       : "bg-purple-50 dark:bg-purple-900/10 text-purple-700 dark:text-purple-400 hover:bg-purple-600 hover:text-white"
@@ -697,9 +1274,9 @@ export default function App() {
                   <span className="hidden lg:inline">Vault</span>
                 </button>
                 <button
-                  onClick={() => { setShowHistory(!showHistory); setShowSaved(false); setShowApiSettings(false); }}
+                  onClick={() => { setShowHistory(!showHistory); setShowSaved(false); setShowApiSettings(false); setShowProfile(false); }}
                   className={cn(
-                    "p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
+                    "p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
                     showHistory
                       ? "bg-emerald-600 text-white shadow-emerald-500/20"
                       : "bg-emerald-50 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white"
@@ -708,12 +1285,25 @@ export default function App() {
                   <History className="w-4 h-4" />
                   <span className="hidden lg:inline">History</span>
                 </button>
+                <button
+                  onClick={() => { setShowProfile(!showProfile); setShowHistory(false); setShowSaved(false); setShowApiSettings(false); }}
+                  className={cn(
+                    "p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
+                    showProfile
+                      ? "bg-red-600 text-white shadow-red-500/20"
+                      : "bg-red-50 dark:bg-red-900/10 text-red-700 dark:text-red-400 hover:bg-red-600 hover:text-white"
+                  )}
+                  title="Profile Settings"
+                >
+                  <Youtube className="w-4 h-4" />
+                  <span className="hidden lg:inline">Profile</span>
+                </button>
               </div>
             </div>
           </div>
         </header>
 
-        <main className="max-w-4xl mx-auto px-4 pt-12">
+        <main className="max-w-4xl mx-auto px-3 sm:px-4 pt-8 sm:pt-12">
           {showHistory ? (
             <motion.div
               initial={{ opacity: 0, x: 20 }}
@@ -797,6 +1387,65 @@ export default function App() {
                 </div>
               )}
             </motion.div>
+          ) : showProfile ? (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-8"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-3xl font-bold tracking-tighter uppercase">Channel <span className="text-red-500">Profile</span></h2>
+                <button
+                  onClick={() => setShowProfile(false)}
+                  className="text-xs font-mono text-zinc-500 hover:text-zinc-300"
+                >
+                  BACK TO PRODUCER
+                </button>
+              </div>
+
+              <div className="rounded-2xl p-6 border border-zinc-200 dark:border-white/10 theme-aware-box space-y-4">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-2">
+                  <Youtube className="w-4 h-4 text-red-500" />
+                  Channel Name Management
+                </h3>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    value={channelDraft}
+                    onChange={(e) => setChannelDraft(e.target.value)}
+                    placeholder="Enter your channel name"
+                    className={cn(
+                      "flex-1 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm focus:ring-red-500/20 focus:border-red-500/50 transition-all",
+                      theme === 'dark' ? "bg-black/50 text-white" : "bg-white text-zinc-900"
+                    )}
+                    aria-label="Channel Name"
+                  />
+                  <button
+                    onClick={updateChannelName}
+                    disabled={!channelDraft.trim()}
+                    className="px-4 py-3 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider"
+                  >
+                    Save Name
+                  </button>
+                  <button
+                    onClick={clearChannelName}
+                    className="px-4 py-3 rounded-xl bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 text-xs font-bold uppercase tracking-wider"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => {
+                      setChannelDraft(channelName);
+                      setError(null);
+                    }}
+                    className="px-4 py-3 rounded-xl border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 text-xs font-bold uppercase tracking-wider"
+                  >
+                    Reset Draft
+                  </button>
+                </div>
+                <p className="text-[11px] text-zinc-500 font-mono">Active channel: <span className="text-zinc-700 dark:text-zinc-300 font-bold">{channelName || 'Not set'}</span></p>
+              </div>
+            </motion.div>
           ) : showApiSettings ? (
             <motion.div
               initial={{ opacity: 0, x: 20 }}
@@ -817,7 +1466,7 @@ export default function App() {
                 <div className="flex flex-col gap-4">
                   <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-2">
                     <Plus className="w-4 h-4 text-blue-500" />
-                    Add New Gemini Key
+                    Add New API Key
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <input
@@ -832,7 +1481,7 @@ export default function App() {
                     />
                     <input
                       type="password"
-                      placeholder="Paste Gemini API Key here..."
+                      placeholder="Paste Gemini or Groq API Key here..."
                       value={newKeyValue}
                       onChange={(e) => setNewKeyValue(e.target.value)}
                       className={cn(
@@ -844,11 +1493,19 @@ export default function App() {
                   <button
                     onClick={() => {
                       if (!newKeyName || !newKeyValue) return;
+                      const trimmedKey = newKeyValue.trim();
+                      const provider = inferKeyProvider(trimmedKey);
+                      if (provider === 'unknown') {
+                        setError('⚠️ Unknown API key format. Gemini keys usually start with AIza, Groq keys with gsk_.');
+                        return;
+                      }
+
                       const id = Date.now().toString();
                       setApiKeys(prev => [
                         ...prev.map(k => ({ ...k, active: false })),
-                        { id, name: newKeyName, key: newKeyValue, active: true }
+                        { id, name: newKeyName, key: trimmedKey, active: true, provider }
                       ]);
+                      setError(null);
                       setNewKeyName('');
                       setNewKeyValue('');
                     }}
@@ -921,6 +1578,7 @@ export default function App() {
                               <div className="flex items-center gap-2 mb-1">
                                 <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">{item.name}</h4>
                                 {item.active && <span className="text-[8px] font-mono text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded uppercase font-bold">Active</span>}
+                                <span className="text-[8px] font-mono text-zinc-500 bg-zinc-500/10 px-1.5 py-0.5 rounded uppercase font-bold">{(item.provider || inferKeyProvider(item.key)).toUpperCase()}</span>
                               </div>
                               <p className="text-[10px] text-zinc-500 font-mono">••••••••••••{item.key.slice(-4)}</p>
                             </div>
@@ -977,6 +1635,7 @@ export default function App() {
                               <span className="uppercase font-bold mr-2">
                                 {quotaInfo[item.id].status === 'valid' ? '✅ OPERATIONAL' :
                                   quotaInfo[item.id].status === 'quota_exceeded' ? '⚠️ QUOTA EXHAUSTED' :
+                                  quotaInfo[item.id].status === 'invalid' ? '❌ INVALID KEY' :
                                     '❌ KEY ERROR'}
                               </span>
                               <span className="text-zinc-500">{quotaInfo[item.id].message}</span>
@@ -993,7 +1652,7 @@ export default function App() {
               <div className="p-6 bg-blue-500/5 rounded-2xl border border-blue-500/10">
                 <p className="text-[10px] text-zinc-500 font-mono leading-relaxed">
                   <span className="text-blue-500 font-bold uppercase mr-2">Security Protocol:</span>
-                  Your API keys are stored locally in your browser's LocalStorage. They are never sent to our servers. Keys are only used to authenticate direct requests to the Google Gemini API.
+                  Your API keys are stored locally in your browser's LocalStorage. They are never sent to our servers. Keys are used only for direct requests to Gemini or Groq APIs based on selected model.
                 </p>
               </div>
             </motion.div>
@@ -1428,6 +2087,49 @@ export default function App() {
                       </div>
                     </section>
 
+                    {seoQuality && (
+                      <section className={cn("rounded-2xl overflow-hidden border", theme === 'dark' ? "bg-black border-white/10" : "bg-white border-zinc-200 shadow-sm")}>
+                        <div className={cn("p-5 sm:p-6 border-b flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between", theme === 'dark' ? "border-zinc-800" : "border-zinc-100")}>
+                          <div className="flex items-center gap-3">
+                            <Cpu className="text-blue-500 w-5 h-5" />
+                            <h3 className="font-bold uppercase tracking-wider text-sm">AI SEO Quality Score</h3>
+                          </div>
+                          <div className={cn(
+                            "px-3 py-1 rounded-lg text-sm font-black",
+                            seoQuality.overall >= 80 ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" :
+                              seoQuality.overall >= 65 ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" :
+                                "bg-red-500/15 text-red-600 dark:text-red-400"
+                          )}>
+                            SCORE: {seoQuality.overall}/100
+                          </div>
+                        </div>
+                        <div className="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className={cn("rounded-xl p-4 border", theme === 'dark' ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-zinc-50")}>
+                            <p className="text-[11px] uppercase font-bold tracking-wide text-zinc-500 mb-2">Title Strength</p>
+                            <p className="text-2xl font-black text-red-500">{seoQuality.titleStrength}</p>
+                          </div>
+                          <div className={cn("rounded-xl p-4 border", theme === 'dark' ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-zinc-50")}>
+                            <p className="text-[11px] uppercase font-bold tracking-wide text-zinc-500 mb-2">Hashtag Diversity</p>
+                            <p className="text-2xl font-black text-emerald-500">{seoQuality.hashtagDiversity}</p>
+                          </div>
+                          <div className={cn("rounded-xl p-4 border", theme === 'dark' ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-zinc-50")}>
+                            <p className="text-[11px] uppercase font-bold tracking-wide text-zinc-500 mb-2">Policy Safety</p>
+                            <p className="text-2xl font-black text-blue-500">{seoQuality.policySafety}</p>
+                          </div>
+                        </div>
+                        <div className={cn("px-5 sm:px-6 pb-6", theme === 'dark' ? "text-zinc-300" : "text-zinc-700")}>
+                          <ul className="space-y-2 text-xs sm:text-sm">
+                            {seoQuality.insights.map((insight, index) => (
+                              <li key={index} className="flex items-start gap-2">
+                                <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-500 shrink-0" />
+                                <span>{insight}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </section>
+                    )}
+
                     {/* SEO Section */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       {/* Titles */}
@@ -1569,31 +2271,364 @@ export default function App() {
                       </div>
                     </section>
 
-                    {/* Tactical Optimization Tips */}
-                    {result.optimizationTips && result.optimizationTips.length > 0 && (
-                      <section className="pt-8 mb-4">
-                        <div className="flex items-center gap-3 mb-8">
-                          <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
-                            <Zap className="text-white w-4 h-4 fill-current" />
+                    {/* Shorts Clip Plan */}
+                    <section className="pt-8 mb-4">
+                      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-5 mb-5 bg-zinc-50/60 dark:bg-zinc-950/60">
+                        <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                          <div className="w-full sm:w-64">
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5">Total Short Duration (seconds)</label>
+                            <input
+                              type="number"
+                              min={15}
+                              max={180}
+                              step={1}
+                              value={shortsTargetSeconds}
+                              onChange={(e) => {
+                                setShortsTargetSeconds(Number(e.target.value));
+                                setClipPlanError(null);
+                              }}
+                              className={cn(
+                                "w-full rounded-xl px-3 py-2.5 text-xs border focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50",
+                                theme === 'dark' ? "bg-zinc-950 border-zinc-800 text-zinc-200" : "bg-white border-zinc-200 text-zinc-900"
+                              )}
+                              aria-label="Total short duration in seconds"
+                            />
                           </div>
-                          <h3 className="text-2xl font-bold tracking-tighter uppercase">Tactical Optimization Tips</h3>
+                          <button
+                            onClick={handleGenerateClipPlan}
+                            disabled={generatingClipPlan}
+                            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-wider"
+                          >
+                            {generatingClipPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                            {generatingClipPlan ? 'Generating...' : 'Generate Clip Plan'}
+                          </button>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          {result.optimizationTips.map((tip, i) => (
-                            <motion.div
-                              key={i}
-                              initial={{ opacity: 0, x: -20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: 0.2 + (i * 0.1) }}
-                              className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex gap-3"
+                        <p className="text-[10px] mt-2 font-mono uppercase tracking-wider text-zinc-500">
+                          Enter your target short duration first, then generate exact hook, middle, and end clip ranges.
+                        </p>
+                        {result?.shortsClipPlan?.length > 0 && (
+                          <p className={cn(
+                            "text-[10px] mt-1 font-mono uppercase tracking-wider",
+                            clipPlanStats.isAligned ? "text-emerald-500" : "text-amber-500"
+                          )}>
+                            Generated total {clipPlanStats.total}s vs target {shortsTargetSeconds}s
+                          </p>
+                        )}
+                        {clipPlanError && (
+                          <div className="mt-2 flex items-start gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2">
+                            <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                            <p className="text-[11px] text-red-500 font-medium">{clipPlanError}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {result.shortsClipPlan && result.shortsClipPlan.length > 0 && (
+                        <>
+                          <div className="flex items-center gap-3 mb-8">
+                            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
+                              <Zap className="text-white w-4 h-4 fill-current" />
+                            </div>
+                            <h3 className="text-2xl font-bold tracking-tighter uppercase">Short Video Clip Plan</h3>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            {result.shortsClipPlan.map((clip, i) => {
+                              const [startTime, endTime] = clip.timeRange.split('-').map(t => t.trim());
+                              return (
+                                <motion.div
+                                  key={i}
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: 0.2 + (i * 0.1) }}
+                                  className="p-5 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border-2 border-emerald-500/40 hover:border-emerald-500/60 transition-colors space-y-3"
+                                >
+                                  {/* Segment Title */}
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="text-emerald-500 font-mono font-black text-lg">0{i + 1} - {clip.segment}</div>
+                                    <div className="bg-emerald-500/20 px-2.5 py-1 rounded-lg text-[10px] uppercase tracking-wider font-bold text-emerald-600 dark:text-emerald-400">
+                                      {clip.durationSeconds}s
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Timestamp - LARGE AND PROMINENT */}
+                                  <div className="bg-emerald-500/5 border border-emerald-500/30 rounded-lg p-3 space-y-1.5">
+                                    <div className="text-[10px] uppercase tracking-wider font-bold text-zinc-500">Extract from YouTube:</div>
+                                    <div className="text-sm font-mono font-black text-emerald-600 dark:text-emerald-400">
+                                      FROM <span className="text-base text-emerald-500">{startTime}</span>
+                                    </div>
+                                    <div className="text-sm font-mono font-black text-emerald-600 dark:text-emerald-400">
+                                      TO <span className="text-base text-emerald-500">{endTime}</span>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* CapCut Instruction */}
+                                  <p className="text-xs text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed border-t border-emerald-500/20 pt-3">
+                                    {clip.editInstruction}
+                                  </p>
+                                </motion.div>
+                              );
+                            })}
+                          </div>
+                          <p className="text-[11px] mt-3 font-mono uppercase tracking-wider text-zinc-500 bg-zinc-100/50 dark:bg-zinc-900/50 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                            ⏱️ EXACT YouTube timestamps - Go to video at each time and extract these clip ranges using CapCut
+                          </p>
+                        </>
+                      )}
+                    </section>
+
+                    <section className={cn("rounded-2xl overflow-hidden border", theme === 'dark' ? "bg-black border-white/10" : "bg-white border-zinc-200 shadow-sm")}>
+                      <div className={cn("p-5 sm:p-6 border-b", theme === 'dark' ? "border-zinc-800" : "border-zinc-100")}>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <Image className="w-5 h-5 text-red-500" />
+                            <h3 className="font-bold uppercase tracking-wider text-sm">Thumbnail Generator Lab</h3>
+                          </div>
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+                            Click generate when you are ready
+                          </span>
+                        </div>
+                        <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-2">
+                          Settings are auto-filled from video analysis. You can customize and then generate premium thumbnail concepts.
+                        </p>
+                      </div>
+
+                      <div className="p-5 sm:p-6 space-y-5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5">Ratio</label>
+                            <select
+                              value={thumbnailSettings.ratio}
+                              onChange={(e) => setThumbnailSettings((prev) => ({ ...prev, ratio: e.target.value as ThumbnailRatioOption }))}
+                              className={cn(
+                                "w-full rounded-xl px-3 py-2.5 text-xs border focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50",
+                                theme === 'dark' ? "bg-zinc-950 border-zinc-800 text-zinc-200" : "bg-white border-zinc-200 text-zinc-900"
+                              )}
+                              aria-label="Thumbnail ratio"
                             >
-                              <div className="text-emerald-500 font-mono font-bold">0{i + 1}</div>
-                              <p className="text-xs text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed">{tip}</p>
-                            </motion.div>
-                          ))}
+                              <option value="16:9">16:9 (Landscape)</option>
+                              <option value="9:16">9:16 (Shorts Vertical)</option>
+                              <option value="1:1">1:1 (Square)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5">Style</label>
+                            <select
+                              value={thumbnailSettings.style}
+                              onChange={(e) => setThumbnailSettings((prev) => ({ ...prev, style: e.target.value as ThumbnailStyleOption }))}
+                              className={cn(
+                                "w-full rounded-xl px-3 py-2.5 text-xs border focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50",
+                                theme === 'dark' ? "bg-zinc-950 border-zinc-800 text-zinc-200" : "bg-white border-zinc-200 text-zinc-900"
+                              )}
+                              aria-label="Thumbnail style"
+                            >
+                              <option value="auto">Auto (AI picks)</option>
+                              <option value="realistic">Realistic</option>
+                              <option value="cinematic">Cinematic</option>
+                              <option value="cartoon">Cartoon</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5">Tone</label>
+                            <select
+                              value={thumbnailSettings.tone}
+                              onChange={(e) => setThumbnailSettings((prev) => ({ ...prev, tone: e.target.value as ThumbnailToneOption }))}
+                              className={cn(
+                                "w-full rounded-xl px-3 py-2.5 text-xs border focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50",
+                                theme === 'dark' ? "bg-zinc-950 border-zinc-800 text-zinc-200" : "bg-white border-zinc-200 text-zinc-900"
+                              )}
+                              aria-label="Thumbnail tone"
+                            >
+                              <option value="urgent">Urgent</option>
+                              <option value="mystery">Mystery</option>
+                              <option value="authority">Authority</option>
+                              <option value="emotional">Emotional</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5">Text Density</label>
+                            <select
+                              value={thumbnailSettings.textDensity}
+                              onChange={(e) => setThumbnailSettings((prev) => ({ ...prev, textDensity: e.target.value as ThumbnailTextDensityOption }))}
+                              className={cn(
+                                "w-full rounded-xl px-3 py-2.5 text-xs border focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50",
+                                theme === 'dark' ? "bg-zinc-950 border-zinc-800 text-zinc-200" : "bg-white border-zinc-200 text-zinc-900"
+                              )}
+                              aria-label="Thumbnail text density"
+                            >
+                              <option value="minimal">Minimal</option>
+                              <option value="balanced">Balanced</option>
+                              <option value="bold">Bold</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5">Font Style</label>
+                            <select
+                              value={thumbnailSettings.fontStyle}
+                              onChange={(e) => setThumbnailSettings((prev) => ({ ...prev, fontStyle: e.target.value as ThumbnailFontStyleOption }))}
+                              className={cn(
+                                "w-full rounded-xl px-3 py-2.5 text-xs border focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50",
+                                theme === 'dark' ? "bg-zinc-950 border-zinc-800 text-zinc-200" : "bg-white border-zinc-200 text-zinc-900"
+                              )}
+                              aria-label="Thumbnail font style"
+                            >
+                              <option value="default">Default (Current)</option>
+                              <option value="impact">Impact</option>
+                              <option value="modern">Modern Sans</option>
+                              <option value="news">News Bold</option>
+                              <option value="condensed">Condensed</option>
+                            </select>
+                          </div>
                         </div>
-                      </section>
-                    )}
+
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                          <button
+                            onClick={() => handleGenerateThumbnailSuggestion('fresh')}
+                            disabled={generatingThumbnails}
+                            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-wider"
+                          >
+                            {generatingThumbnails ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-4 h-4" />
+                                Generate Thumbnail Concept
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleGenerateThumbnailSuggestion('another')}
+                            disabled={generatingThumbnails || !thumbnailSuggestion}
+                            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 disabled:opacity-60 disabled:cursor-not-allowed text-zinc-800 dark:text-zinc-100 text-xs font-black uppercase tracking-wider"
+                          >
+                            Another Concept
+                          </button>
+                          <p className="text-[11px] text-zinc-500 font-mono">
+                            Credit-safe mode: one concept per click.
+                          </p>
+                        </div>
+
+                        {thumbnailError && (
+                          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-500">
+                            {thumbnailError}
+                          </div>
+                        )}
+
+                        {thumbnailSuggestion ? (
+                          <div className={cn(
+                            "rounded-2xl p-4 sm:p-5 border",
+                            theme === 'dark' ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-zinc-50"
+                          )}>
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+                              <div>
+                                <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-1">Current Concept</p>
+                                <h4 className="text-sm sm:text-base font-black text-zinc-900 dark:text-zinc-100">{thumbnailSuggestion.title}</h4>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleGenerateFinalThumbnail(thumbnailSuggestion)}
+                                  disabled={generatingFinalThumbnail}
+                                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-red-600 text-white hover:bg-red-500 disabled:opacity-60"
+                                >
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                  {generatingFinalThumbnail ? 'Generating...' : 'Generate Professional Prompt'}
+                                </button>
+                                <button
+                                  onClick={() => copyToClipboard(thumbnailSuggestion.visualPrompt, 'thumb-prompt-current')}
+                                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200"
+                                >
+                                  {copiedField === 'thumb-prompt-current' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                  Copy Prompt
+                                </button>
+                              </div>
+                            </div>
+
+                            {thumbnailPromptText && (
+                              <div className="mb-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
+                                <div className="p-4 bg-gradient-to-r from-red-600 to-red-700 border-b border-zinc-200 dark:border-zinc-800">
+                                  <p className="text-[10px] font-mono uppercase tracking-widest text-white font-bold">📋 Professional 8K Thumbnail Generation Prompt</p>
+                                  <p className="text-[11px] text-red-100 mt-1">Use this prompt with any AI image generation service (Midjourney, Stable Diffusion, etc.)</p>
+                                </div>
+                                
+                                <div className={cn(
+                                  "p-4 max-h-96 overflow-y-auto font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words",
+                                  theme === 'dark' ? "bg-zinc-950 text-zinc-300" : "bg-white text-zinc-700"
+                                )}>
+                                  {thumbnailPromptText}
+                                </div>
+
+                                <div className="p-3 flex flex-wrap items-center gap-2 justify-between border-t border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-950">
+                                  <button
+                                    onClick={() => copyToClipboard(thumbnailPromptText, 'thumb-final-prompt')}
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-red-600 text-white hover:bg-red-500"
+                                  >
+                                    {copiedField === 'thumb-final-prompt' ? (<>
+                                      <Check className="w-3.5 h-3.5" />
+                                      Copied!
+                                    </>) : (<>
+                                      <Copy className="w-3.5 h-3.5" />
+                                      Copy Prompt
+                                    </>)}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const element = document.createElement('a');
+                                      const file = new Blob([thumbnailPromptText], {type: 'text/plain'});
+                                      element.href = URL.createObjectURL(file);
+                                      element.download = `thumbnail-prompt-${Date.now()}.txt`;
+                                      document.body.appendChild(element);
+                                      element.click();
+                                      document.body.removeChild(element);
+                                    }}
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-zinc-700"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                    Save as Text
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
+                                  <p className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1">Hook Text</p>
+                                  <p className="text-lg font-black text-red-500 leading-tight">{thumbnailSuggestion.hookText}</p>
+                                  {thumbnailSuggestion.supportingText && <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">{thumbnailSuggestion.supportingText}</p>}
+                                </div>
+                                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
+                                  <p className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1">Composition</p>
+                                  <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">{thumbnailSuggestion.composition}</p>
+                                </div>
+                                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
+                                  <p className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1">Color + Style</p>
+                                  <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">{thumbnailSuggestion.colorDirection}</p>
+                                  <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed mt-1">{thumbnailSuggestion.styleNotes}</p>
+                                </div>
+                              </div>
+                              <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
+                                <p className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1">Generation Prompt</p>
+                                <p className="text-xs font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap break-words leading-relaxed">{thumbnailSuggestion.visualPrompt}</p>
+                                {thumbnailSuggestion.negativePrompt && (
+                                  <>
+                                    <p className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mt-3 mb-1">Negative Prompt</p>
+                                    <p className="text-xs font-mono text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap break-words leading-relaxed">{thumbnailSuggestion.negativePrompt}</p>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className={cn(
+                            "rounded-xl border border-dashed p-4 text-xs",
+                            theme === 'dark' ? "border-zinc-800 text-zinc-500" : "border-zinc-300 text-zinc-600"
+                          )}>
+                            No concept generated yet. Click Generate Thumbnail Concept to get one idea at a time.
+                          </div>
+                        )}
+                      </div>
+                    </section>
 
                   </div>
                 )}
