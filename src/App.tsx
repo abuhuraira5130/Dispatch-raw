@@ -1220,14 +1220,14 @@ export default function App() {
             <div className="header-glow-bottom"></div>
           </div>
           <div className="max-w-7xl mx-auto px-3 sm:px-4 h-16 sm:h-20 flex items-center justify-between relative z-10">
-            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-4 min-w-0">
               <div className="app-logo-shell w-10 h-10 sm:w-12 sm:h-12 rounded-2xl police-gradient flex items-center justify-center p-0.5 active:scale-95 transition-all shrink-0">
                 <div className={cn("app-logo-core w-full h-full rounded-[14px] flex items-center justify-center transition-colors", theme === 'dark' ? "bg-black" : "bg-white")}>
                   <Shield className="app-logo-mark text-red-600 dark:text-red-500 w-6 h-6 sm:w-7 sm:h-7 fill-red-500/10" />
                 </div>
               </div>
               <div className="min-w-0">
-                <h1 className="font-bold text-lg sm:text-2xl tracking-tighter uppercase text-black dark:text-white leading-none truncate">Dispatch <span className="text-red-600 dark:text-red-500">Raw</span></h1>
+                <h1 className="font-bold text-base sm:text-2xl tracking-tighter uppercase text-black dark:text-white leading-none truncate">Dispatch <span className="text-red-600 dark:text-red-500">Raw</span></h1>
                 <p className="hidden sm:block text-[10px] text-zinc-600 dark:text-zinc-400 font-mono uppercase tracking-[0.3em] mt-1 font-bold">Strategic Intelligence Agency</p>
               </div>
             </div>
@@ -1243,7 +1243,7 @@ export default function App() {
               <div className="header-action-row flex items-center gap-1 sm:gap-3">
                 <button
                   onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                  className="p-2 rounded-lg bg-white dark:bg-black/50 border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition-all flex items-center justify-center"
+                  className="header-icon-btn p-2 rounded-lg bg-white dark:bg-black/50 border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition-all flex items-center justify-center"
                   title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 >
                   {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -1251,7 +1251,7 @@ export default function App() {
                 <button
                   onClick={() => { setShowApiSettings(!showApiSettings); setShowHistory(false); setShowSaved(false); setShowProfile(false); }}
                   className={cn(
-                    "p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
+                    "header-icon-btn p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
                     showApiSettings
                       ? "bg-blue-600 text-white shadow-blue-500/20"
                       : "bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-400 hover:bg-blue-600 hover:text-white"
@@ -1264,7 +1264,7 @@ export default function App() {
                 <button
                   onClick={() => { setShowSaved(!showSaved); setShowHistory(false); setShowApiSettings(false); setShowProfile(false); }}
                   className={cn(
-                    "p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
+                    "header-icon-btn p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
                     showSaved
                       ? "bg-purple-600 text-white shadow-purple-500/20"
                       : "bg-purple-50 dark:bg-purple-900/10 text-purple-700 dark:text-purple-400 hover:bg-purple-600 hover:text-white"
@@ -1276,7 +1276,7 @@ export default function App() {
                 <button
                   onClick={() => { setShowHistory(!showHistory); setShowSaved(false); setShowApiSettings(false); setShowProfile(false); }}
                   className={cn(
-                    "p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
+                    "header-icon-btn p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
                     showHistory
                       ? "bg-emerald-600 text-white shadow-emerald-500/20"
                       : "bg-emerald-50 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white"
@@ -1288,7 +1288,7 @@ export default function App() {
                 <button
                   onClick={() => { setShowProfile(!showProfile); setShowHistory(false); setShowSaved(false); setShowApiSettings(false); }}
                   className={cn(
-                    "p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
+                    "header-icon-btn p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
                     showProfile
                       ? "bg-red-600 text-white shadow-red-500/20"
                       : "bg-red-50 dark:bg-red-900/10 text-red-700 dark:text-red-400 hover:bg-red-600 hover:text-white"
@@ -1302,6 +1302,16 @@ export default function App() {
             </div>
           </div>
         </header>
+
+        {loading && (
+          <div className="global-loader-overlay" role="status" aria-live="polite" aria-busy="true">
+            <div className="global-loader-card">
+              <div className="global-loader-spinner" aria-hidden="true" />
+              <p className="global-loader-title">Processing Your Video</p>
+              <p className="global-loader-subtitle">{loadingStep ? `Step: ${loadingStep.toUpperCase()}` : 'Preparing analysis pipeline...'}</p>
+            </div>
+          </div>
+        )}
 
         <main className="max-w-4xl mx-auto px-3 sm:px-4 pt-8 sm:pt-12">
           {showHistory ? (
@@ -1910,27 +1920,29 @@ export default function App() {
                 )}></div>
 
                 <form onSubmit={handleAnalyze} className={cn(
-                  "relative flex items-center backdrop-blur-3xl rounded-3xl border border-zinc-200 dark:border-white/10 p-1.5 transition-all duration-700 focus-within:ring-2 focus-within:ring-red-500/50",
+                  "relative flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0 backdrop-blur-3xl rounded-3xl border border-zinc-200 dark:border-white/10 p-2 sm:p-1.5 transition-all duration-700 focus-within:ring-2 focus-within:ring-red-500/50",
                   theme === 'dark' ? "bg-black/80 shadow-none" : "bg-white shadow-[0_15px_60px_-15px_rgba(0,0,0,0.1)] group-hover:shadow-[0_20px_80px_-10px_rgba(0,0,0,0.2)]"
                 )}>
-                  <div className="pl-4 text-red-600 dark:text-red-500">
-                    <Youtube className="w-6 h-6 fill-red-600/10" />
+                  <div className="w-full flex items-center">
+                    <div className="pl-3 sm:pl-4 text-red-600 dark:text-red-500">
+                      <Youtube className="w-5 h-5 sm:w-6 sm:h-6 fill-red-600/10" />
+                    </div>
+                    <input
+                      type="text"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      placeholder="PASTE YOUTUBE URL..."
+                      className={cn(
+                        "w-full bg-transparent border-none focus:ring-0 px-4 sm:px-6 py-3.5 sm:py-5 font-black tracking-tight text-sm outline-none selection:bg-red-500/30",
+                        theme === 'dark' ? "text-white placeholder:text-zinc-500" : "text-black placeholder:text-zinc-600"
+                      )}
+                    />
                   </div>
-                  <input
-                    type="text"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder="PASTE DISPATCH TARGET URL (YOUTUBE)..."
-                    className={cn(
-                      "flex-1 bg-transparent border-none focus:ring-0 px-6 py-5 font-black tracking-tight text-sm outline-none selection:bg-red-500/30",
-                      theme === 'dark' ? "text-white placeholder:text-zinc-500" : "text-black placeholder:text-zinc-600"
-                    )}
-                  />
                   <button
                     type="submit"
                     disabled={loading}
                     className={cn(
-                      "px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 uppercase tracking-tighter shadow-xl shadow-red-500/20 active:scale-95",
+                      "w-full sm:w-auto sm:min-w-[10.25rem] justify-center px-5 sm:px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 uppercase tracking-tighter shadow-xl shadow-red-500/20 active:scale-95",
                       loading
                         ? "bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed"
                         : "bg-red-600 text-white hover:bg-red-500"
@@ -1961,7 +1973,7 @@ export default function App() {
                   transition={{ delay: 0.3 }}
                   className="mb-16"
                 >
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
                     <div className="flex items-center gap-3">
                       <div className="w-1 h-6 bg-red-500 rounded-full" />
                       <h3 className="text-lg font-bold tracking-tighter uppercase text-zinc-900 dark:text-zinc-100">Recent Analytics Archive</h3>
@@ -2667,7 +2679,6 @@ export default function App() {
         <div className="fixed inset-0 pointer-events-none z-[-1]">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-red-600/5 blur-[120px] rounded-full" />
           <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-600/5 blur-[120px] rounded-full" />
-          <div className="scanline" />
         </div>
       </div>
     </ErrorBoundary>
