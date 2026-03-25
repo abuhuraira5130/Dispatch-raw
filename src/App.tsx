@@ -371,6 +371,7 @@ export default function App() {
   const [vaultDate, setVaultDate] = useState<'all' | 'today' | 'week' | 'month'>('all');
   const [historySearch, setHistorySearch] = useState('');
   const [showApiSettings, setShowApiSettings] = useState(false);
+  const [showBootLoader, setShowBootLoader] = useState(true);
 
   const [apiKeys, setApiKeys] = useState<{ id: string, name: string, key: string, active: boolean, provider?: KeyProvider }[]>(() => {
     const saved = localStorage.getItem('dispatch_gemini_keys');
@@ -549,6 +550,11 @@ export default function App() {
     root.style.setProperty('--beam-opacity', `${Math.min(1, 0.7 + scrollDepth * 0.28)}`);
     root.style.setProperty('--blob-scale', `${1 + scrollDepth * 0.08}`);
   }, [scrollDepth, isLowPerformanceDevice]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShowBootLoader(false), 1200);
+    return () => window.clearTimeout(timer);
+  }, []);
 
 
 
@@ -1303,12 +1309,12 @@ export default function App() {
           </div>
         </header>
 
-        {loading && (
+        {showBootLoader && (
           <div className="global-loader-overlay" role="status" aria-live="polite" aria-busy="true">
             <div className="global-loader-card">
               <div className="global-loader-spinner" aria-hidden="true" />
-              <p className="global-loader-title">Processing Your Video</p>
-              <p className="global-loader-subtitle">{loadingStep ? `Step: ${loadingStep.toUpperCase()}` : 'Preparing analysis pipeline...'}</p>
+              <p className="global-loader-title">Loading...</p>
+              <p className="global-loader-subtitle">Preparing your dashboard</p>
             </div>
           </div>
         )}
