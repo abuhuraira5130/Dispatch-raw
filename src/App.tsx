@@ -38,7 +38,10 @@ import {
   CheckCircle2,
   Image,
   Sparkles,
-  Download
+  Download,
+  Bell,
+  X,
+  CircleHelp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -72,6 +75,14 @@ interface SeoQualityScore {
   hashtagDiversity: number;
   policySafety: number;
   insights: string[];
+}
+
+type ToastKind = 'success' | 'info' | 'warning';
+
+interface ToastItem {
+  id: string;
+  message: string;
+  kind: ToastKind;
 }
 
 type ThumbnailStyleOption = ThumbnailSettingsInput['style'];
@@ -372,6 +383,9 @@ export default function App() {
   const [historySearch, setHistorySearch] = useState('');
   const [showApiSettings, setShowApiSettings] = useState(false);
   const [showBootLoader, setShowBootLoader] = useState(true);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [faqOpen, setFaqOpen] = useState(false);
+  const [faqQuery, setFaqQuery] = useState('');
 
   const [apiKeys, setApiKeys] = useState<{ id: string, name: string, key: string, active: boolean, provider?: KeyProvider }[]>(() => {
     const saved = localStorage.getItem('dispatch_gemini_keys');
@@ -556,6 +570,55 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  const showToast = (message: string, kind: ToastKind = 'info', duration = 5000) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setToasts((prev) => [...prev, { id, message, kind }]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((toast) => toast.id !== id));
+    }, duration);
+  };
+
+  useEffect(() => {
+    const key = 'dispatch_first_visit_done';
+    const alreadySeen = localStorage.getItem(key) === '1';
+    if (!alreadySeen) {
+      showToast('Welcome! Setup channel name + API key first, then start analysis.', 'info', 5000);
+      localStorage.setItem(key, '1');
+    }
+  }, []);
+
+  const backToProducerBtnClass = cn(
+    'inline-flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider border transition-all',
+    theme === 'dark'
+      ? 'text-zinc-300 border-zinc-700 bg-zinc-900/40 hover:bg-zinc-800 hover:text-white'
+      : 'text-zinc-700 border-zinc-300 bg-white hover:bg-zinc-100'
+  );
+
+  const faqItems = [
+    {
+      q: 'How do I start analysis?',
+      a: 'Set your channel name in Profile, add API key in API settings, then paste YouTube link and click Analyze.'
+    },
+    {
+      q: 'Why clip plan may not generate?',
+      a: 'For accuracy mode, transcript/captions are required. If transcript is unavailable, clip extraction is blocked.'
+    },
+    {
+      q: 'Gemini vs Groq model?',
+      a: 'Select model in API settings. Active API key provider must match selected model provider.'
+    },
+    {
+      q: 'Where are saved items stored?',
+      a: 'Saved vault, history, and keys are stored locally in your browser storage.'
+    }
+  ];
+
+  const filteredFaq = faqItems.filter((item) => {
+    const query = faqQuery.trim().toLowerCase();
+    if (!query) return true;
+    return item.q.toLowerCase().includes(query) || item.a.toLowerCase().includes(query);
+  });
+
 
 
   const filteredSavedItems = savedItems.filter(item => {
@@ -604,6 +667,7 @@ export default function App() {
         setEditContent('');
       }
       setSavedItems(prev => prev.filter(item => item.id !== isAlreadySaved.id));
+      showToast(`${type.toUpperCase()} removed from vault.`, 'warning', 3500);
     } else {
       const newItem = {
         id: Date.now().toString(),
@@ -613,6 +677,7 @@ export default function App() {
         createdAt: new Date().toISOString()
       };
       setSavedItems(prev => [newItem, ...prev]);
+      showToast(`${type.toUpperCase()} saved to vault.`, 'success', 3500);
     }
   };
 
@@ -636,6 +701,7 @@ export default function App() {
 
     setSavedItems(prev => prev.filter(item => !selectedItems.has(item.id)));
     setSelectedItems(new Set());
+    showToast('Selected vault items deleted.', 'warning', 3500);
   };
 
   const handleBulkShare = async () => {
@@ -643,6 +709,7 @@ export default function App() {
     const itemsToShare = savedItems.filter(item => selectedItems.has(item.id));
     const shareText = itemsToShare.map(item => `[${item.type.toUpperCase()}]\n${item.content}`).join('\n\n---\n\n');
     handleShare(shareText, 'Bulk Saved Content');
+    showToast('Selected items prepared for sharing.', 'info', 3500);
   };
 
   const handleFeedback = (section: string, type: 'up' | 'down') => {
@@ -855,6 +922,7 @@ export default function App() {
     setVideoId(item.videoId);
     setUrl(item.url);
     setError(null);
+    showToast('Loaded analysis from history.', 'info', 3200);
     // Smooth scroll to results
     setTimeout(() => {
       const resultsElement = document.getElementById('results-section');
@@ -1110,6 +1178,7 @@ export default function App() {
     setThumbnailFinalUrl(thumbnailAdjustedUrl);
     setThumbnailAdjustedUrl(null);
     setThumbnailAdjustedFilters({ brightness: 0, contrast: 0, saturation: 0, vibrance: 0 });
+    showToast('Adjusted thumbnail saved.', 'success', 3200);
   };
 
   const seoQuality = useMemo<SeoQualityScore | null>(() => {
@@ -1185,12 +1254,14 @@ export default function App() {
     if (!normalized) return;
     setChannelName(normalized);
     setError(null);
+    showToast('Channel name updated successfully.', 'success', 3500);
   };
 
   const clearChannelName = () => {
     localStorage.removeItem('dispatch_channel_name');
     setChannelName('');
     setChannelDraft('');
+    showToast('Channel name cleared.', 'warning', 3500);
   };
 
   return (
@@ -1344,7 +1415,7 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => setShowHistory(false)}
-                    className="text-xs font-mono text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300 whitespace-nowrap"
+                    className={backToProducerBtnClass}
                   >
                     BACK TO PRODUCER
                   </button>
@@ -1413,7 +1484,7 @@ export default function App() {
                 <h2 className="text-3xl font-bold tracking-tighter uppercase">Channel <span className="text-red-500">Profile</span></h2>
                 <button
                   onClick={() => setShowProfile(false)}
-                  className="text-xs font-mono text-zinc-500 hover:text-zinc-300"
+                  className={backToProducerBtnClass}
                 >
                   BACK TO PRODUCER
                 </button>
@@ -1453,6 +1524,7 @@ export default function App() {
                     onClick={() => {
                       setChannelDraft(channelName);
                       setError(null);
+                      showToast('Draft reset to current channel name.', 'info', 3000);
                     }}
                     className="px-4 py-3 rounded-xl border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 text-xs font-bold uppercase tracking-wider"
                   >
@@ -1461,6 +1533,7 @@ export default function App() {
                 </div>
                 <p className="text-[11px] text-zinc-500 font-mono">Active channel: <span className="text-zinc-700 dark:text-zinc-300 font-bold">{channelName || 'Not set'}</span></p>
               </div>
+                                showToast('History item deleted.', 'warning', 3200);
             </motion.div>
           ) : showApiSettings ? (
             <motion.div
@@ -1472,7 +1545,7 @@ export default function App() {
                 <h2 className="text-3xl font-bold tracking-tighter uppercase">API <span className="text-blue-500">Settings</span></h2>
                 <button
                   onClick={() => setShowApiSettings(false)}
-                  className="text-xs font-mono text-zinc-500 hover:text-zinc-300"
+                  className={backToProducerBtnClass}
                 >
                   BACK TO PRODUCER
                 </button>
@@ -1522,6 +1595,7 @@ export default function App() {
                         { id, name: newKeyName, key: trimmedKey, active: true, provider }
                       ]);
                       setError(null);
+                      showToast('API key added and activated.', 'success', 3500);
                       setNewKeyName('');
                       setNewKeyValue('');
                     }}
@@ -1602,7 +1676,10 @@ export default function App() {
                           <div className="flex items-center gap-2">
                             {!item.active && (
                               <button
-                                onClick={() => setApiKeys(prev => prev.map(k => ({ ...k, active: k.id === item.id })))}
+                                onClick={() => {
+                                  setApiKeys(prev => prev.map(k => ({ ...k, active: k.id === item.id })));
+                                  showToast(`Activated key: ${item.name}`, 'success', 3200);
+                                }}
                                 className="px-3 py-1.5 rounded-lg bg-white dark:bg-black text-zinc-600 dark:text-zinc-400 hover:text-blue-500 text-[10px] font-bold uppercase transition-all"
                               >
                                 Activate
@@ -1623,6 +1700,7 @@ export default function App() {
                               onClick={() => {
                                 if (confirm('Delete this API key?')) {
                                   setApiKeys(prev => prev.filter(k => k.id !== item.id));
+                                  showToast(`Deleted key: ${item.name}`, 'warning', 3200);
                                 }
                               }}
                               className="p-2 rounded-lg bg-white dark:bg-black text-zinc-400 hover:text-red-500 transition-all"
@@ -1701,7 +1779,7 @@ export default function App() {
                   )}
                   <button
                     onClick={() => setShowSaved(false)}
-                    className="text-xs font-mono text-zinc-500 hover:text-zinc-300"
+                    className={backToProducerBtnClass}
                   >
                     BACK TO PRODUCER
                   </button>
@@ -2664,6 +2742,83 @@ export default function App() {
             </>
           )}
         </main>
+
+        <div className="toast-stack" aria-live="polite" aria-atomic="true">
+          <AnimatePresence>
+            {toasts.map((toast) => (
+              <motion.div
+                key={toast.id}
+                initial={{ opacity: 0, y: -12, x: 16 }}
+                animate={{ opacity: 1, y: 0, x: 0 }}
+                exit={{ opacity: 0, y: -10, x: 16 }}
+                className={cn(
+                  'toast-item',
+                  toast.kind === 'success' && 'toast-success',
+                  toast.kind === 'warning' && 'toast-warning',
+                  toast.kind === 'info' && 'toast-info'
+                )}
+              >
+                <Bell className="w-4 h-4 shrink-0" />
+                <span>{toast.message}</span>
+                <button
+                  onClick={() => setToasts((prev) => prev.filter((item) => item.id !== toast.id))}
+                  className="toast-close"
+                  aria-label="Dismiss notification"
+                  title="Dismiss"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+
+        <div className="faq-widget-wrap">
+          {faqOpen && (
+            <div className="faq-panel" role="dialog" aria-label="FAQ panel">
+              <div className="faq-panel-head">
+                <div className="flex items-center gap-2">
+                  <CircleHelp className="w-4 h-4 text-emerald-400" />
+                  <p className="faq-panel-title">Help & FAQ</p>
+                </div>
+                <button
+                  onClick={() => setFaqOpen(false)}
+                  className="faq-panel-close"
+                  aria-label="Close FAQ"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <input
+                value={faqQuery}
+                onChange={(e) => setFaqQuery(e.target.value)}
+                placeholder="Search FAQ..."
+                className="faq-search"
+                aria-label="Search FAQ"
+              />
+              <div className="faq-list">
+                {filteredFaq.map((item) => (
+                  <div key={item.q} className="faq-item">
+                    <p className="faq-q">{item.q}</p>
+                    <p className="faq-a">{item.a}</p>
+                  </div>
+                ))}
+                {filteredFaq.length === 0 && (
+                  <p className="faq-empty">No matching answer found. Try another question.</p>
+                )}
+              </div>
+            </div>
+          )}
+          <button
+            onClick={() => setFaqOpen((prev) => !prev)}
+            className="faq-fab"
+            title="Open FAQ"
+            aria-label="Open FAQ"
+          >
+            <CircleHelp className="w-5 h-5" />
+            <span>FAQ</span>
+          </button>
+        </div>
 
         {/* Footer */}
         <footer className="mt-20 border-t border-zinc-200 dark:border-zinc-900 py-12 px-4">
