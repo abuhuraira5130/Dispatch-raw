@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { GoogleGenAI } from '@google/genai';
+import Groq from 'groq-sdk';
 import {
   Shield,
   Search,
@@ -41,7 +43,8 @@ import {
   Download,
   Bell,
   X,
-  CircleHelp
+  Bot,
+  Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -83,6 +86,14 @@ interface ToastItem {
   id: string;
   message: string;
   kind: ToastKind;
+}
+
+type AskBotRole = 'user' | 'bot' | 'thinking';
+
+interface AskBotMessage {
+  id: string;
+  role: AskBotRole;
+  text: string;
 }
 
 type ThumbnailStyleOption = ThumbnailSettingsInput['style'];
@@ -386,6 +397,10 @@ export default function App() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [faqOpen, setFaqOpen] = useState(false);
   const [faqQuery, setFaqQuery] = useState('');
+  const [helpAgentBusy, setHelpAgentBusy] = useState(false);
+  const [askBotMessages, setAskBotMessages] = useState<AskBotMessage[]>([]);
+  const askBotMessagesRef = useRef<HTMLDivElement | null>(null);
+  const hasPlayedAskBotOpenSound = useRef(false);
 
   const [apiKeys, setApiKeys] = useState<{ id: string, name: string, key: string, active: boolean, provider?: KeyProvider }[]>(() => {
     const saved = localStorage.getItem('dispatch_gemini_keys');
@@ -588,10 +603,10 @@ export default function App() {
   }, []);
 
   const backToProducerBtnClass = cn(
-    'inline-flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider border transition-all',
+    'inline-flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider border transition-all shadow-sm',
     theme === 'dark'
-      ? 'text-zinc-300 border-zinc-700 bg-zinc-900/40 hover:bg-zinc-800 hover:text-white'
-      : 'text-zinc-700 border-zinc-300 bg-white hover:bg-zinc-100'
+      ? 'text-cyan-200 border-cyan-500/40 bg-gradient-to-r from-cyan-900/35 to-blue-900/30 hover:from-cyan-800/45 hover:to-blue-800/45 hover:text-white'
+      : 'text-cyan-700 border-cyan-400/50 bg-gradient-to-r from-cyan-100 to-blue-100 hover:from-cyan-200 hover:to-blue-200'
   );
 
   const faqItems = [
@@ -618,6 +633,177 @@ export default function App() {
     if (!query) return true;
     return item.q.toLowerCase().includes(query) || item.a.toLowerCase().includes(query);
   });
+
+  useEffect(() => {
+    if (!faqOpen || !askBotMessagesRef.current) return;
+    askBotMessagesRef.current.scrollTop = askBotMessagesRef.current.scrollHeight;
+  }, [askBotMessages, faqOpen]);
+
+  const playAskBotOpenSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const notes = [523.25, 659.25, 783.99];
+
+      notes.forEach((frequency, index) => {
+        const startAt = ctx.currentTime + index * 0.08;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = frequency;
+
+        gain.gain.setValueAtTime(0.0001, startAt);
+        gain.gain.exponentialRampToValueAtTime(0.045, startAt + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.18);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(startAt);
+        osc.stop(startAt + 0.2);
+      });
+
+      window.setTimeout(() => {
+        ctx.close().catch(() => undefined);
+      }, 420);
+    } catch {
+      // best effort
+    }
+  };
+
+  const buildHelpAgentReply = (query: string) => {
+    const q = query.trim().toLowerCase();
+    if (!q) {
+      return 'Please ask a specific question.';
+    }
+
+    const greetingTokens = ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening'];
+    if (greetingTokens.some((token) => q === token || q.startsWith(`${token} `))) {
+      return 'Hello. How can I help you today?';
+    }
+
+    if (q === 'how are you' || q === 'how are you?') {
+      return 'I am doing well. Share your question and I will answer directly.';
+    }
+
+    if (q.includes('api') || q.includes('key') || q.includes('model')) {
+      return 'API setup:\n1) Open API settings and add a valid Gemini or Groq key.\n2) Keep the selected model provider aligned with the active key provider.\n3) Run Check Status before analysis to verify the key health.';
+    }
+
+    if (q.includes('channel') || q.includes('profile')) {
+      return 'Profile setup:\n1) Open the Profile section.\n2) Save your channel name.\n3) Run analysis after profile is saved. Missing channel name can block the workflow.';
+    }
+
+    if (q.includes('clip') || q.includes('short') || q.includes('timestamp')) {
+      return 'Clip plan:\n1) Set your target short duration.\n2) Generate the plan for Hook/Middle/End timestamps.\n3) If transcript is unavailable, strict accuracy mode can block clip planning.';
+    }
+
+    if (q.includes('save') || q.includes('vault') || q.includes('history')) {
+      return 'Vault and History:\n1) Save titles, descriptions, and tags from result cards.\n2) Use History to reload past analyses.\n3) Search, edit, copy, share, and bulk delete are supported.';
+    }
+
+    if (q.includes('loader') || q.includes('loading')) {
+      return 'Loading behavior:\nThe boot loader appears only on initial open/refresh. Analyze actions use inline loading so the workflow remains visible.';
+    }
+
+    if (q.includes('time') || q.includes('date')) {
+      const now = new Date();
+      return `Current local time: ${now.toLocaleTimeString()}\nCurrent date: ${now.toLocaleDateString()}`;
+    }
+
+    const pureMathExpression = /^[\d\s+\-*/().%]+$/.test(q) && /\d/.test(q);
+    if (pureMathExpression) {
+      try {
+        const evaluated = Function(`"use strict"; return (${q});`)();
+        if (typeof evaluated === 'number' && Number.isFinite(evaluated)) {
+          return `Math result: ${evaluated}`;
+        }
+      } catch {
+        return 'I could not evaluate that math expression. Please use a simple format like: 125*3-40';
+      }
+    }
+
+    if (q.includes('weather') || q.includes('news')) {
+      return 'For live weather or live news, use a real-time source and share details here. I can summarize and explain it clearly for you.';
+    }
+
+    const matched = faqItems.find((item) => item.q.toLowerCase().includes(q));
+    if (matched) {
+      return `${matched.q}\n${matched.a}`;
+    }
+
+    return `Here is a direct answer based on your question: ${query.trim()}\nPlease add one extra detail if you want a more precise answer.`;
+  };
+
+  const generateAskBotReplyFromModel = async (question: string): Promise<string | null> => {
+    if (!activeKey.trim()) return null;
+
+    const systemInstruction =
+      'You are Ask Bot embedded in a creator dashboard. Answer the exact user question directly in concise, clear English. ' +
+      'If the question is about this dashboard, provide step-by-step actionable guidance. If it is a general question, provide a best-effort accurate answer.';
+
+    try {
+      if (selectedModel.startsWith('llama')) {
+        const groq = new Groq({ apiKey: activeKey.trim(), dangerouslyAllowBrowser: true });
+        const completion = await groq.chat.completions.create({
+          model: selectedModel,
+          temperature: 0.35,
+          max_tokens: 480,
+          messages: [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: question },
+          ],
+        });
+
+        const text = completion.choices[0]?.message?.content?.trim();
+        return text || null;
+      }
+
+      const ai = new GoogleGenAI({ apiKey: activeKey.trim() });
+      const result = await ai.models.generateContent({
+        model: selectedModel,
+        contents: [{ role: 'user', parts: [{ text: question }] }],
+        config: {
+          temperature: 0.35,
+          systemInstruction,
+        },
+      });
+
+      const text = (result.text || '').trim();
+      return text || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const askHelpAgent = (question: string) => {
+    const prompt = question.trim();
+    if (!prompt) {
+      showToast('Please type a question for Ask Bot.', 'warning', 2500);
+      return;
+    }
+
+    const userMessageId = `askbot-user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const thinkingId = `askbot-thinking-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+    setAskBotMessages((prev) => [
+      ...prev,
+      { id: userMessageId, role: 'user', text: prompt },
+      { id: thinkingId, role: 'thinking', text: 'Thinking' },
+    ]);
+    setFaqQuery('');
+    setHelpAgentBusy(true);
+    const delay = 950 + Math.floor(Math.random() * 800);
+
+    window.setTimeout(async () => {
+      const modelReply = await generateAskBotReplyFromModel(prompt);
+      const reply = modelReply || buildHelpAgentReply(prompt);
+      setAskBotMessages((prev) =>
+        prev.map((msg) => (msg.id === thinkingId ? { ...msg, role: 'bot', text: reply } : msg))
+      );
+      setHelpAgentBusy(false);
+    }, delay);
+  };
 
 
 
@@ -1461,6 +1647,7 @@ export default function App() {
                             onClick={() => {
                               if (confirm('Delete this from history?')) {
                                 setHistory(prev => prev.filter(h => h.id !== item.id));
+                                showToast('History item deleted.', 'warning', 3200);
                               }
                             }}
                             className={theme === "dark" ? "p-2.5 rounded-xl bg-black text-red-500 shadow-sm transition-all" : "p-2.5 rounded-xl bg-white text-red-600 border border-zinc-100 shadow-sm transition-all"}
@@ -1533,7 +1720,6 @@ export default function App() {
                 </div>
                 <p className="text-[11px] text-zinc-500 font-mono">Active channel: <span className="text-zinc-700 dark:text-zinc-300 font-bold">{channelName || 'Not set'}</span></p>
               </div>
-                                showToast('History item deleted.', 'warning', 3200);
             </motion.div>
           ) : showApiSettings ? (
             <motion.div
@@ -2774,49 +2960,143 @@ export default function App() {
         </div>
 
         <div className="faq-widget-wrap">
-          {faqOpen && (
-            <div className="faq-panel" role="dialog" aria-label="FAQ panel">
-              <div className="faq-panel-head">
-                <div className="flex items-center gap-2">
-                  <CircleHelp className="w-4 h-4 text-emerald-400" />
-                  <p className="faq-panel-title">Help & FAQ</p>
-                </div>
-                <button
-                  onClick={() => setFaqOpen(false)}
-                  className="faq-panel-close"
-                  aria-label="Close FAQ"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <input
-                value={faqQuery}
-                onChange={(e) => setFaqQuery(e.target.value)}
-                placeholder="Search FAQ..."
-                className="faq-search"
-                aria-label="Search FAQ"
-              />
-              <div className="faq-list">
-                {filteredFaq.map((item) => (
-                  <div key={item.q} className="faq-item">
-                    <p className="faq-q">{item.q}</p>
-                    <p className="faq-a">{item.a}</p>
+          <AnimatePresence>
+            {faqOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 18, scale: 0.97 }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                className={cn('faq-panel', theme === 'dark' ? 'faq-panel-dark' : 'faq-panel-light')}
+                role="dialog"
+                aria-label="Ask Bot panel"
+              >
+                <div className="faq-panel-head">
+                  <div className="flex items-center gap-2">
+                    <Bot className="w-4 h-4 text-sky-500" />
+                    <p className="faq-panel-title">Ask Bot</p>
                   </div>
-                ))}
-                {filteredFaq.length === 0 && (
-                  <p className="faq-empty">No matching answer found. Try another question.</p>
-                )}
-              </div>
-            </div>
-          )}
+                  <button
+                    onClick={() => setFaqOpen(false)}
+                    className="faq-panel-close"
+                    aria-label="Close Ask Bot"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <p className="askbot-banner-line">How can I help you today? Ask anything and get a clear answer.</p>
+
+                <div className={cn('askbot-chat-list', theme === 'dark' ? 'askbot-chat-dark' : 'askbot-chat-light')} ref={askBotMessagesRef}>
+                  {askBotMessages.length === 0 && (
+                    <div className="askbot-empty-state">Ask any question to receive clear and focused guidance.</div>
+                  )}
+                  {askBotMessages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={cn(
+                        'askbot-row',
+                        message.role === 'user' ? 'askbot-row-user' : 'askbot-row-bot'
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          'askbot-bubble',
+                          message.role === 'user' && 'askbot-bubble-user',
+                          message.role === 'bot' && 'askbot-bubble-bot',
+                          message.role === 'thinking' && 'askbot-bubble-thinking'
+                        )}
+                      >
+                        {message.role === 'thinking' ? (
+                          <span className="askbot-thinking-inline" aria-label="Bot is thinking">
+                            <span className="askbot-mini-robot" aria-hidden="true">
+                              <span className="askbot-mini-robot-head">
+                                <span className="askbot-mini-eye"></span>
+                                <span className="askbot-mini-eye"></span>
+                              </span>
+                              <span className="askbot-mini-antenna"></span>
+                            </span>
+                          </span>
+                        ) : (
+                          message.text
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="faq-search-row">
+                  <input
+                    value={faqQuery}
+                    onChange={(e) => setFaqQuery(e.target.value)}
+                    placeholder="Ask your question"
+                    className="faq-search"
+                    aria-label="Ask bot"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !helpAgentBusy) askHelpAgent(faqQuery);
+                    }}
+                  />
+                  <button
+                    onClick={() => askHelpAgent(faqQuery)}
+                    disabled={helpAgentBusy}
+                    className="faq-ask-btn"
+                    aria-label="Send question to Ask Bot"
+                    title="Ask"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>Ask</span>
+                  </button>
+                </div>
+
+                <p className="faq-quick-title">Quick Prompts</p>
+                <div className="faq-list">
+                  {filteredFaq.map((item) => (
+                    <button
+                      key={item.q}
+                      className="faq-item faq-item-btn"
+                      onClick={() => askHelpAgent(item.q)}
+                      title="Ask this prompt"
+                    >
+                      <p className="faq-q">{item.q}</p>
+                    </button>
+                  ))}
+                  {filteredFaq.length === 0 && (
+                    <p className="faq-empty">No matching prompt. Type your own question.</p>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <button
-            onClick={() => setFaqOpen((prev) => !prev)}
-            className="faq-fab"
-            title="Open FAQ"
-            aria-label="Open FAQ"
+            onClick={() => {
+              setFaqOpen((prev) => {
+                const next = !prev;
+                if (next && !hasPlayedAskBotOpenSound.current) {
+                  playAskBotOpenSound();
+                  hasPlayedAskBotOpenSound.current = true;
+                }
+                return next;
+              });
+            }}
+            className={cn('faq-fab', theme === 'dark' ? 'faq-fab-dark' : 'faq-fab-light')}
+            title="Open Ask Bot"
+            aria-label="Open Ask Bot"
           >
-            <CircleHelp className="w-5 h-5" />
-            <span>FAQ</span>
+            <span className="askbot-fab-robot" aria-hidden="true">
+              <span className="askbot-fab-sleep-bubble askbot-fab-sleep-1">z</span>
+              <span className="askbot-fab-sleep-bubble askbot-fab-sleep-2">z</span>
+              <span className="askbot-fab-head">
+                <span className="askbot-fab-eye askbot-fab-eye-sleep"></span>
+                <span className="askbot-fab-eye askbot-fab-eye-sleep"></span>
+              </span>
+              <span className="askbot-fab-antenna"></span>
+              <span className="askbot-fab-body"></span>
+              <span className="askbot-fab-arm askbot-fab-arm-left"></span>
+              <span className="askbot-fab-arm askbot-fab-arm-right"></span>
+              <span className="askbot-fab-leg askbot-fab-leg-left"></span>
+              <span className="askbot-fab-leg askbot-fab-leg-right"></span>
+            </span>
+            <span>Ask Bot</span>
           </button>
         </div>
 
