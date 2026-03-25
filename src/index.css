@@ -329,9 +329,21 @@ body {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(120deg, rgba(3, 37, 65, 0.95), rgba(8, 47, 73, 0.92), rgba(15, 118, 110, 0.9), rgba(67, 56, 202, 0.9));
-  background-size: 260% 260%;
+  background: linear-gradient(120deg, rgba(6, 20, 45, 0.98), rgba(7, 35, 77, 0.96), rgba(9, 98, 92, 0.96), rgba(55, 48, 163, 0.96));
+  background-size: 300% 300%;
+  opacity: 0.98;
   z-index: 0;
+}
+
+.faq-fab::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.2) 45%, transparent 70%);
+  transform: translateX(-130%);
+  z-index: 0;
+  pointer-events: none;
 }
 
 .faq-fab > * {
@@ -355,7 +367,11 @@ body {
 }
 
 .faq-fab-dynamic::before {
-  animation: askme-bg-shift 8s ease-in-out infinite, askme-bg-hue 14s linear infinite;
+  animation: askme-bg-cycler 3.2s linear infinite;
+}
+
+.faq-fab-dynamic::after {
+  animation: askme-bg-sweep 1.8s ease-in-out infinite;
 }
 
 .faq-fab:hover {
@@ -960,21 +976,41 @@ body {
   }
 }
 
-@keyframes askme-bg-shift {
+@keyframes askme-bg-cycler {
   0%, 100% {
+    background: linear-gradient(120deg, rgba(6, 20, 45, 0.98), rgba(7, 35, 77, 0.96), rgba(9, 98, 92, 0.96), rgba(55, 48, 163, 0.96));
     background-position: 0% 50%;
+    box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.25);
+  }
+  25% {
+    background: linear-gradient(120deg, rgba(22, 16, 58, 0.98), rgba(30, 64, 175, 0.96), rgba(8, 145, 178, 0.96), rgba(5, 150, 105, 0.95));
+    background-position: 100% 50%;
   }
   50% {
+    background: linear-gradient(120deg, rgba(17, 24, 39, 0.98), rgba(8, 47, 73, 0.96), rgba(6, 182, 212, 0.96), rgba(99, 102, 241, 0.96));
+    background-position: 0% 50%;
+  }
+  75% {
+    background: linear-gradient(120deg, rgba(41, 37, 36, 0.98), rgba(9, 98, 92, 0.96), rgba(2, 132, 199, 0.96), rgba(79, 70, 229, 0.96));
     background-position: 100% 50%;
   }
 }
 
-@keyframes askme-bg-hue {
-  0%, 100% {
-    filter: hue-rotate(0deg);
+@keyframes askme-bg-sweep {
+  0% {
+    transform: translateX(-130%);
+    opacity: 0;
   }
-  50% {
-    filter: hue-rotate(38deg);
+  30% {
+    opacity: 0.9;
+  }
+  55% {
+    transform: translateX(120%);
+    opacity: 0.65;
+  }
+  100% {
+    transform: translateX(120%);
+    opacity: 0;
   }
 }
 
@@ -983,7 +1019,11 @@ body {
 }
 
 .adaptive-shell.is-low-perf .faq-fab-dynamic::before {
-  animation-duration: 14s, 24s;
+  animation-duration: 7.5s;
+}
+
+.adaptive-shell.is-low-perf .faq-fab-dynamic::after {
+  animation-duration: 3.8s;
 }
 
 .adaptive-shell.is-low-perf .askbot-fab-robot,
