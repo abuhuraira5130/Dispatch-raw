@@ -3093,7 +3093,11 @@ export default function App() {
                 return next;
               });
             }}
-            className={cn('faq-fab', theme === 'dark' ? 'faq-fab-dark' : 'faq-fab-light')}
+            className={cn(
+              'faq-fab',
+              theme === 'dark' ? 'faq-fab-dark' : 'faq-fab-light',
+              !faqOpen && 'faq-fab-dynamic'
+            )}
             title="Open Ask Me"
             aria-label="Open Ask Me"
           >

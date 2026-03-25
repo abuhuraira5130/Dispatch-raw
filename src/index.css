@@ -306,22 +306,37 @@ body {
 }
 
 .faq-fab {
+  position: relative;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   border-radius: 999px;
-  border: 1px solid rgba(56, 189, 248, 0.56);
-  background: linear-gradient(125deg, rgba(3, 37, 65, 0.95), rgba(9, 58, 84, 0.93), rgba(13, 70, 77, 0.92));
+  border: 1px solid rgba(56, 189, 248, 0.62);
+  background: transparent;
   color: #ecfeff;
   padding: 9px 13px;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), 0 0 20px rgba(56, 189, 248, 0.35);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), 0 0 22px rgba(56, 189, 248, 0.38);
   transition: transform 180ms ease, filter 180ms ease;
-  background-size: 180% 180%;
-  animation: askbot-fab-pulse 4.2s ease-in-out infinite, askbot-fab-gradient 12s ease-in-out infinite;
+}
+
+.faq-fab::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(120deg, rgba(3, 37, 65, 0.95), rgba(8, 47, 73, 0.92), rgba(15, 118, 110, 0.9), rgba(67, 56, 202, 0.9));
+  background-size: 260% 260%;
+  z-index: 0;
+}
+
+.faq-fab > * {
+  position: relative;
+  z-index: 1;
 }
 
 .faq-fab-dark {
@@ -331,10 +346,16 @@ body {
 
 .faq-fab-light {
   border-color: rgba(14, 116, 144, 0.4);
-  background: linear-gradient(125deg, rgba(224, 242, 254, 0.96), rgba(186, 230, 253, 0.94), rgba(209, 250, 229, 0.92));
   color: #0c4a6e;
   box-shadow: 0 10px 24px rgba(2, 132, 199, 0.22), 0 0 16px rgba(34, 211, 238, 0.2);
-  background-size: 180% 180%;
+}
+
+.faq-fab-light::before {
+  background: linear-gradient(120deg, rgba(224, 242, 254, 0.96), rgba(186, 230, 253, 0.94), rgba(167, 243, 208, 0.9), rgba(191, 219, 254, 0.92));
+}
+
+.faq-fab-dynamic::before {
+  animation: askme-bg-shift 8s ease-in-out infinite, askme-bg-hue 14s linear infinite;
 }
 
 .faq-fab:hover {
@@ -662,7 +683,8 @@ body {
   display: inline-flex;
   align-items: flex-end;
   justify-content: center;
-  animation: askbot-robot-breathe 2.4s ease-in-out infinite;
+  transform-origin: 50% 88%;
+  animation: askbot-robot-drowse 3.6s ease-in-out infinite;
 }
 
 .askbot-fab-head {
@@ -677,6 +699,7 @@ body {
   gap: 3px;
   position: absolute;
   top: 0;
+  animation: askbot-head-nod 3.6s ease-in-out infinite;
 }
 
 .faq-fab-light .askbot-fab-head {
@@ -766,10 +789,12 @@ body {
 
 .askbot-fab-leg-left {
   left: 7px;
+  transform: rotate(18deg);
 }
 
 .askbot-fab-leg-right {
   right: 7px;
+  transform: rotate(-18deg);
 }
 
 .askbot-fab-sleep-bubble {
@@ -827,6 +852,48 @@ body {
   }
 }
 
+@keyframes askbot-robot-drowse {
+  0%, 14%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  24% {
+    transform: translateY(0.4px) rotate(4deg);
+  }
+  34% {
+    transform: translateY(1.4px) rotate(12deg);
+  }
+  40% {
+    transform: translateY(2px) rotate(16deg);
+  }
+  48% {
+    transform: translateY(-0.8px) rotate(-5deg);
+  }
+  58% {
+    transform: translateY(0) rotate(2deg);
+  }
+  70% {
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+@keyframes askbot-head-nod {
+  0%, 20%, 100% {
+    transform: rotate(0deg) translateY(0);
+  }
+  30% {
+    transform: rotate(5deg) translateY(0.8px);
+  }
+  40% {
+    transform: rotate(9deg) translateY(1.6px);
+  }
+  48% {
+    transform: rotate(-3deg) translateY(-0.4px);
+  }
+  60% {
+    transform: rotate(0deg) translateY(0);
+  }
+}
+
 @keyframes askbot-sleep-z {
   0%, 100% {
     opacity: 0.2;
@@ -878,26 +945,60 @@ body {
   }
 }
 
+@keyframes askbot-fab-color-cycle {
+  0%, 100% {
+    border-color: rgba(56, 189, 248, 0.62);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), 0 0 22px rgba(56, 189, 248, 0.38);
+  }
+  33% {
+    border-color: rgba(16, 185, 129, 0.62);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), 0 0 22px rgba(16, 185, 129, 0.34);
+  }
+  66% {
+    border-color: rgba(129, 140, 248, 0.62);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), 0 0 22px rgba(129, 140, 248, 0.34);
+  }
+}
+
+@keyframes askme-bg-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes askme-bg-hue {
+  0%, 100% {
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    filter: hue-rotate(38deg);
+  }
+}
+
 .adaptive-shell.is-low-perf .faq-fab {
-  animation: askbot-fab-gradient 16s linear infinite;
   transition: none;
+}
+
+.adaptive-shell.is-low-perf .faq-fab-dynamic::before {
+  animation-duration: 14s, 24s;
 }
 
 .adaptive-shell.is-low-perf .askbot-fab-robot,
 .adaptive-shell.is-low-perf .askbot-fab-sleep-bubble,
 .adaptive-shell.is-low-perf .askbot-fab-antenna::after {
-  animation-duration: 3.2s;
+  animation-duration: 4.2s;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .faq-fab,
   .askbot-fab-robot,
   .askbot-fab-sleep-bubble,
   .askbot-fab-antenna::after {
     animation: none !important;
   }
 }
-
 @keyframes global-spin {
   to {
     transform: rotate(360deg);
