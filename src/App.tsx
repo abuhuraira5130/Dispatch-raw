@@ -644,28 +644,32 @@ export default function App() {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
-      const notes = [523.25, 659.25, 783.99];
+      const notes: Array<{ freq: number; type: OscillatorType; gain: number; duration: number; start: number }> = [
+        { freq: 392.0, type: 'triangle', gain: 0.03, duration: 0.18, start: 0.0 },
+        { freq: 523.25, type: 'sine', gain: 0.035, duration: 0.2, start: 0.07 },
+        { freq: 659.25, type: 'triangle', gain: 0.03, duration: 0.24, start: 0.14 },
+      ];
 
-      notes.forEach((frequency, index) => {
-        const startAt = ctx.currentTime + index * 0.08;
+      notes.forEach((note) => {
+        const startAt = ctx.currentTime + note.start;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = frequency;
+        osc.type = note.type;
+        osc.frequency.value = note.freq;
 
         gain.gain.setValueAtTime(0.0001, startAt);
-        gain.gain.exponentialRampToValueAtTime(0.045, startAt + 0.03);
-        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.18);
+        gain.gain.exponentialRampToValueAtTime(note.gain, startAt + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + note.duration);
 
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start(startAt);
-        osc.stop(startAt + 0.2);
+        osc.stop(startAt + note.duration + 0.02);
       });
 
       window.setTimeout(() => {
         ctx.close().catch(() => undefined);
-      }, 420);
+      }, 520);
     } catch {
       // best effort
     }
@@ -738,9 +742,20 @@ export default function App() {
   const generateAskBotReplyFromModel = async (question: string): Promise<string | null> => {
     if (!activeKey.trim()) return null;
 
+    const siteContext = [
+      'Website context:',
+      '- Main workflow: analyze a YouTube URL to generate summary, SEO titles, description, tags, and shorts clip plan.',
+      '- Sections: Profile, API Settings, Vault, History, and Thumbnail suggestions.',
+      '- API supports Gemini and Groq keys with model-provider matching.',
+      '- Vault supports save/edit/search/share/delete operations.',
+      '- History supports reload and delete of prior analyses.',
+      '- Clip plan can require transcript availability for strict accuracy.',
+    ].join('\n');
+
     const systemInstruction =
-      'You are Ask Bot embedded in a creator dashboard. Answer the exact user question directly in concise, clear English. ' +
-      'If the question is about this dashboard, provide step-by-step actionable guidance. If it is a general question, provide a best-effort accurate answer.';
+      'You are Ask Me, the in-app assistant for this website. Answer the user question directly in clear, concise English. ' +
+      'Use full knowledge of the provided website context. If asked general questions, give the best possible accurate answer without refusing unnecessarily. ' +
+      'Avoid unnecessary disclaimers and avoid talking about your internal limits unless absolutely required.';
 
     try {
       if (selectedModel.startsWith('llama')) {
@@ -751,7 +766,7 @@ export default function App() {
           max_tokens: 480,
           messages: [
             { role: 'system', content: systemInstruction },
-            { role: 'user', content: question },
+            { role: 'user', content: `${siteContext}\n\nUser question:\n${question}` },
           ],
         });
 
@@ -765,7 +780,7 @@ export default function App() {
         contents: [{ role: 'user', parts: [{ text: question }] }],
         config: {
           temperature: 0.35,
-          systemInstruction,
+          systemInstruction: `${systemInstruction}\n\n${siteContext}`,
         },
       });
 
@@ -779,7 +794,7 @@ export default function App() {
   const askHelpAgent = (question: string) => {
     const prompt = question.trim();
     if (!prompt) {
-      showToast('Please type a question for Ask Bot.', 'warning', 2500);
+      showToast('Please type a question for Ask Me.', 'warning', 2500);
       return;
     }
 
@@ -2969,17 +2984,17 @@ export default function App() {
                 transition={{ duration: 0.22, ease: 'easeOut' }}
                 className={cn('faq-panel', theme === 'dark' ? 'faq-panel-dark' : 'faq-panel-light')}
                 role="dialog"
-                aria-label="Ask Bot panel"
+                aria-label="Ask Me panel"
               >
                 <div className="faq-panel-head">
                   <div className="flex items-center gap-2">
                     <Bot className="w-4 h-4 text-sky-500" />
-                    <p className="faq-panel-title">Ask Bot</p>
+                    <p className="faq-panel-title">Ask Me</p>
                   </div>
                   <button
                     onClick={() => setFaqOpen(false)}
                     className="faq-panel-close"
-                    aria-label="Close Ask Bot"
+                    aria-label="Close Ask Me"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -3031,7 +3046,7 @@ export default function App() {
                     onChange={(e) => setFaqQuery(e.target.value)}
                     placeholder="Ask your question"
                     className="faq-search"
-                    aria-label="Ask bot"
+                    aria-label="Ask Me"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !helpAgentBusy) askHelpAgent(faqQuery);
                     }}
@@ -3040,7 +3055,7 @@ export default function App() {
                     onClick={() => askHelpAgent(faqQuery)}
                     disabled={helpAgentBusy}
                     className="faq-ask-btn"
-                    aria-label="Send question to Ask Bot"
+                    aria-label="Send question to Ask Me"
                     title="Ask"
                   >
                     <Send className="w-4 h-4" />
@@ -3079,8 +3094,8 @@ export default function App() {
               });
             }}
             className={cn('faq-fab', theme === 'dark' ? 'faq-fab-dark' : 'faq-fab-light')}
-            title="Open Ask Bot"
-            aria-label="Open Ask Bot"
+            title="Open Ask Me"
+            aria-label="Open Ask Me"
           >
             <span className="askbot-fab-robot" aria-hidden="true">
               <span className="askbot-fab-sleep-bubble askbot-fab-sleep-1">z</span>
@@ -3096,7 +3111,7 @@ export default function App() {
               <span className="askbot-fab-leg askbot-fab-leg-left"></span>
               <span className="askbot-fab-leg askbot-fab-leg-right"></span>
             </span>
-            <span>Ask Bot</span>
+            <span>Ask Me</span>
           </button>
         </div>
 

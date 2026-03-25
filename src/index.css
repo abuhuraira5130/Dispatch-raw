@@ -313,14 +313,15 @@ body {
   border: 1px solid rgba(56, 189, 248, 0.56);
   background: linear-gradient(125deg, rgba(3, 37, 65, 0.95), rgba(9, 58, 84, 0.93), rgba(13, 70, 77, 0.92));
   color: #ecfeff;
-  padding: 11px 16px;
+  padding: 9px 13px;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), 0 0 20px rgba(56, 189, 248, 0.35);
   transition: transform 180ms ease, filter 180ms ease;
-  animation: askbot-fab-pulse 3.2s ease-in-out infinite;
+  background-size: 180% 180%;
+  animation: askbot-fab-pulse 4.2s ease-in-out infinite, askbot-fab-gradient 12s ease-in-out infinite;
 }
 
 .faq-fab-dark {
@@ -333,6 +334,7 @@ body {
   background: linear-gradient(125deg, rgba(224, 242, 254, 0.96), rgba(186, 230, 253, 0.94), rgba(209, 250, 229, 0.92));
   color: #0c4a6e;
   box-shadow: 0 10px 24px rgba(2, 132, 199, 0.22), 0 0 16px rgba(34, 211, 238, 0.2);
+  background-size: 180% 180%;
 }
 
 .faq-fab:hover {
@@ -655,8 +657,8 @@ body {
 
 .askbot-fab-robot {
   position: relative;
-  width: 28px;
-  height: 34px;
+  width: 21px;
+  height: 26px;
   display: inline-flex;
   align-items: flex-end;
   justify-content: center;
@@ -664,15 +666,15 @@ body {
 }
 
 .askbot-fab-head {
-  width: 22px;
-  height: 14px;
+  width: 16px;
+  height: 11px;
   border-radius: 7px;
   border: 1px solid rgba(186, 230, 253, 0.95);
   background: linear-gradient(145deg, rgba(8, 47, 73, 0.95), rgba(6, 95, 120, 0.86));
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 3px;
   position: absolute;
   top: 0;
 }
@@ -683,7 +685,7 @@ body {
 }
 
 .askbot-fab-eye {
-  width: 5px;
+  width: 4px;
   height: 2px;
   border-radius: 999px;
   background: #e0f2fe;
@@ -700,9 +702,9 @@ body {
 .askbot-fab-antenna {
   position: absolute;
   width: 2px;
-  height: 6px;
-  top: -6px;
-  left: 13px;
+  height: 5px;
+  top: -5px;
+  left: 9px;
   border-radius: 99px;
   background: rgba(125, 211, 252, 0.95);
 }
@@ -721,9 +723,9 @@ body {
 
 .askbot-fab-body {
   position: absolute;
-  top: 15px;
-  width: 17px;
-  height: 12px;
+  top: 11px;
+  width: 13px;
+  height: 9px;
   border-radius: 4px;
   border: 1px solid rgba(186, 230, 253, 0.8);
   background: linear-gradient(150deg, rgba(30, 58, 138, 0.75), rgba(14, 116, 144, 0.78));
@@ -736,8 +738,8 @@ body {
 
 .askbot-fab-arm {
   position: absolute;
-  top: 17px;
-  width: 6px;
+  top: 13px;
+  width: 4px;
   height: 2px;
   border-radius: 999px;
   background: rgba(186, 230, 253, 0.92);
@@ -755,24 +757,24 @@ body {
 
 .askbot-fab-leg {
   position: absolute;
-  width: 4px;
-  height: 6px;
+  width: 3px;
+  height: 4px;
   bottom: 0;
   border-radius: 2px;
   background: rgba(125, 211, 252, 0.85);
 }
 
 .askbot-fab-leg-left {
-  left: 10px;
+  left: 7px;
 }
 
 .askbot-fab-leg-right {
-  right: 10px;
+  right: 7px;
 }
 
 .askbot-fab-sleep-bubble {
   position: absolute;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 800;
   line-height: 1;
   color: rgba(186, 230, 253, 0.95);
@@ -785,13 +787,13 @@ body {
 }
 
 .askbot-fab-sleep-1 {
-  top: -8px;
+  top: -6px;
   right: -1px;
 }
 
 .askbot-fab-sleep-2 {
-  top: -14px;
-  right: -7px;
+  top: -11px;
+  right: -5px;
   animation-delay: 0.4s;
 }
 
@@ -864,6 +866,35 @@ body {
   }
   50% {
     box-shadow: 0 14px 32px rgba(0, 0, 0, 0.4), 0 0 24px rgba(34, 211, 238, 0.44);
+  }
+}
+
+@keyframes askbot-fab-gradient {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.adaptive-shell.is-low-perf .faq-fab {
+  animation: askbot-fab-gradient 16s linear infinite;
+  transition: none;
+}
+
+.adaptive-shell.is-low-perf .askbot-fab-robot,
+.adaptive-shell.is-low-perf .askbot-fab-sleep-bubble,
+.adaptive-shell.is-low-perf .askbot-fab-antenna::after {
+  animation-duration: 3.2s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .faq-fab,
+  .askbot-fab-robot,
+  .askbot-fab-sleep-bubble,
+  .askbot-fab-antenna::after {
+    animation: none !important;
   }
 }
 
@@ -1422,7 +1453,7 @@ body {
   }
 
   .faq-fab {
-    padding: 10px 13px;
+    padding: 9px 12px;
     font-size: 11px;
   }
 
