@@ -3098,22 +3098,6 @@ export default function App() {
           </AnimatePresence>
           <div className="faq-bot-row">
             <button
-              type="button"
-              className={cn('faq-fold-toggle', theme === 'dark' ? 'faq-fold-dark' : 'faq-fold-light')}
-              onClick={() => {
-                setBotFolded((prev) => {
-                  const next = !prev;
-                  if (next) setFaqOpen(false);
-                  return next;
-                });
-              }}
-              title={botFolded ? 'Unfold bot' : 'Fold bot'}
-              aria-label={botFolded ? 'Unfold bot' : 'Fold bot'}
-            >
-              <ChevronRight className={cn('w-4 h-4 transition-transform duration-300', botFolded ? 'rotate-180' : 'rotate-0')} />
-            </button>
-
-            <button
               onClick={() => {
                 setFaqOpen((prev) => {
                   const next = !prev;
@@ -3147,6 +3131,32 @@ export default function App() {
                 <span className="askbot-fab-leg askbot-fab-leg-right"></span>
               </span>
               <span>Ask Me</span>
+            </button>
+
+            <button
+              type="button"
+              className={cn('faq-fold-toggle', theme === 'dark' ? 'faq-fold-dark' : 'faq-fold-light')}
+              onClick={() => {
+                setBotFolded((prev) => {
+                  const next = !prev;
+                  if (next) setFaqOpen(false);
+                  return next;
+                });
+              }}
+              title={botFolded ? 'Unfold bot' : 'Fold bot'}
+              aria-label={botFolded ? 'Unfold bot' : 'Fold bot'}
+            >
+              <span className="fold-peek-robot" aria-hidden="true">
+                <span className="fold-peek-particles"></span>
+                <span className="fold-peek-body">
+                  <span className="fold-peek-head">
+                    <span className="fold-peek-eye"></span>
+                    <span className="fold-peek-eye"></span>
+                  </span>
+                  <span className="fold-peek-arm"></span>
+                </span>
+              </span>
+              <ChevronRight className={cn('w-4 h-4 transition-transform duration-300', botFolded ? 'rotate-180' : 'rotate-0')} />
             </button>
           </div>
         </div>

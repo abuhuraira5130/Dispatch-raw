@@ -329,9 +329,9 @@ body {
 }
 
 .faq-bot-row {
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
   width: fit-content;
   transform: translate3d(0, 0, 0);
   will-change: transform;
@@ -339,28 +339,34 @@ body {
 }
 
 .faq-widget-folded .faq-bot-row {
-  transform: translate3d(calc(100% - 20px), 0, 0);
+  transform: translate3d(0, 0, 0);
 }
 
 .faq-fold-toggle {
-  width: 34px;
-  height: 34px;
-  min-width: 34px;
-  min-height: 34px;
+  position: absolute;
+  top: 50%;
+  right: -22px;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 22px;
+  min-width: 16px;
+  min-height: 22px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: 8px;
   border: 1px solid rgba(56, 189, 248, 0.5);
   background: linear-gradient(135deg, rgba(8, 23, 44, 0.95), rgba(11, 49, 84, 0.88));
   color: #bae6fd;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
   transition: transform 180ms ease, filter 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
   z-index: 2;
+  overflow: visible;
+  will-change: transform;
 }
 
 .faq-fold-toggle:hover {
-  transform: translateY(-1px);
+  transform: translateY(calc(-50% - 1px));
   filter: brightness(1.08);
 }
 
@@ -377,8 +383,9 @@ body {
 }
 
 .faq-widget-folded .faq-fold-toggle {
-  width: 20px;
-  min-width: 20px;
+  right: -18px;
+  width: 16px;
+  min-width: 16px;
   height: 52px;
   min-height: 52px;
   border-radius: 12px 0 0 12px;
@@ -396,8 +403,108 @@ body {
 }
 
 .faq-widget-folded .faq-fold-toggle:hover {
-  transform: none;
+  transform: translateY(-50%);
   filter: brightness(1.06);
+}
+
+.fold-peek-robot {
+  position: absolute;
+  left: -32px;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  transform: translate3d(0, -50%, 0);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.fold-peek-particles {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 22% 34%, rgba(103, 232, 249, 0.95) 0 1px, transparent 2px),
+    radial-gradient(circle at 72% 24%, rgba(34, 211, 238, 0.9) 0 1px, transparent 2px),
+    radial-gradient(circle at 66% 72%, rgba(56, 189, 248, 0.85) 0 1px, transparent 2px),
+    radial-gradient(circle at 38% 78%, rgba(125, 211, 252, 0.75) 0 1px, transparent 2px);
+  opacity: 0;
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.78));
+  transform: scale(0.65);
+  will-change: transform, opacity;
+}
+
+.fold-peek-body {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translate3d(9px, 1px, 0) scale(0.74);
+  will-change: transform, opacity;
+}
+
+.fold-peek-head {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  width: 20px;
+  height: 12px;
+  border-radius: 7px;
+  border: 1px solid rgba(125, 211, 252, 0.9);
+  background: linear-gradient(150deg, rgba(8, 47, 73, 0.95), rgba(14, 116, 144, 0.82));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+
+.fold-peek-eye {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: #ecfeff;
+  box-shadow: 0 0 5px rgba(34, 211, 238, 0.85);
+}
+
+.fold-peek-arm {
+  position: absolute;
+  right: 1px;
+  top: 14px;
+  width: 8px;
+  height: 3px;
+  border-radius: 99px;
+  transform-origin: left center;
+  background: rgba(125, 211, 252, 0.9);
+}
+
+.faq-widget-folded .fold-peek-robot {
+  animation: fold-peek-cycle 3.6s cubic-bezier(0.25, 0.6, 0.2, 1) infinite;
+}
+
+.faq-widget-folded .fold-peek-particles {
+  animation: fold-peek-particles 3.6s ease-in-out infinite;
+}
+
+.faq-widget-folded .fold-peek-body {
+  animation: fold-peek-materialize 3.6s cubic-bezier(0.22, 0.8, 0.22, 1) infinite;
+}
+
+.faq-widget-folded .fold-peek-eye {
+  animation: fold-peek-eye-blink 3.6s linear infinite, fold-peek-eye-glitch 3.6s linear infinite;
+}
+
+.faq-widget-folded .fold-peek-arm {
+  animation: fold-peek-wave 3.6s ease-in-out infinite;
+}
+
+.faq-widget-low-perf .fold-peek-particles {
+  display: none;
+}
+
+.faq-widget-low-perf .faq-widget-folded .fold-peek-robot,
+.faq-widget-low-perf .faq-widget-folded .fold-peek-body,
+.faq-widget-low-perf .faq-widget-folded .fold-peek-eye,
+.faq-widget-low-perf .faq-widget-folded .fold-peek-arm {
+  animation-duration: 4.8s;
 }
 
 .faq-fab {
@@ -421,12 +528,12 @@ body {
 }
 
 .faq-widget-folded .faq-fab {
-  transform: translate3d(calc(100% + 36px), 0, 0);
+  transform: translate3d(calc(100% + 46px), 0, 0);
   pointer-events: none;
 }
 
 .faq-widget-folded .faq-fab:hover {
-  transform: translate3d(calc(100% + 36px), 0, 0);
+  transform: translate3d(calc(100% + 46px), 0, 0);
 }
 
 .faq-fab::before {
@@ -1066,6 +1173,108 @@ body {
   }
 }
 
+@keyframes fold-peek-cycle {
+  0%, 14%, 100% {
+    opacity: 0;
+    transform: translate3d(8px, -50%, 0) scale(0.62);
+  }
+  24%, 52% {
+    opacity: 1;
+    transform: translate3d(0, -50%, 0) scale(1);
+  }
+  62% {
+    opacity: 0;
+    transform: translate3d(6px, -50%, 0) scale(0.7);
+  }
+}
+
+@keyframes fold-peek-particles {
+  0%, 14%, 100% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  20% {
+    opacity: 0.9;
+    transform: scale(0.92);
+  }
+  28%, 46% {
+    opacity: 0.25;
+    transform: scale(1.03);
+  }
+  58% {
+    opacity: 0.85;
+    transform: scale(0.76);
+  }
+  66% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+
+@keyframes fold-peek-materialize {
+  0%, 16%, 100% {
+    opacity: 0;
+    transform: translate3d(6px, 1px, 0) scale(0.7);
+  }
+  26%, 50% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  60% {
+    opacity: 0;
+    transform: translate3d(5px, 1px, 0) scale(0.72);
+  }
+}
+
+@keyframes fold-peek-eye-blink {
+  0%, 30%, 34%, 40%, 44%, 100% {
+    transform: scaleY(1);
+  }
+  32%, 42% {
+    transform: scaleY(0.15);
+  }
+}
+
+@keyframes fold-peek-eye-glitch {
+  0%, 36%, 100% {
+    filter: none;
+  }
+  37% {
+    filter: drop-shadow(0 0 2px rgba(103, 232, 249, 0.9));
+  }
+  38% {
+    filter: drop-shadow(0 0 4px rgba(103, 232, 249, 1));
+  }
+  39% {
+    filter: none;
+  }
+}
+
+@keyframes fold-peek-wave {
+  0%, 34%, 100% {
+    opacity: 0;
+    transform: rotate(0deg);
+  }
+  38% {
+    opacity: 1;
+    transform: rotate(18deg);
+  }
+  43% {
+    transform: rotate(-22deg);
+  }
+  48% {
+    transform: rotate(16deg);
+  }
+  53% {
+    transform: rotate(-12deg);
+    opacity: 1;
+  }
+  58% {
+    opacity: 0;
+    transform: rotate(0deg);
+  }
+}
+
 @keyframes askbot-fab-color-cycle {
   0%, 100% {
     border-color: rgba(56, 189, 248, 0.62);
@@ -1687,7 +1896,7 @@ body {
   }
 
   .faq-widget-folded .faq-bot-row {
-    transform: translate3d(calc(100% - 18px), 0, 0);
+    transform: translate3d(0, 0, 0);
   }
 
   .faq-panel {
@@ -1716,15 +1925,17 @@ body {
   }
 
   .faq-fold-toggle {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    min-height: 32px;
+    right: -20px;
+    width: 15px;
+    height: 20px;
+    min-width: 15px;
+    min-height: 20px;
   }
 
   .faq-widget-folded .faq-fold-toggle {
-    width: 18px;
-    min-width: 18px;
+    right: -16px;
+    width: 14px;
+    min-width: 14px;
     height: 48px;
     min-height: 48px;
   }
