@@ -399,6 +399,8 @@ export default function App() {
   const [faqQuery, setFaqQuery] = useState('');
   const [helpAgentBusy, setHelpAgentBusy] = useState(false);
   const [askBotMessages, setAskBotMessages] = useState<AskBotMessage[]>([]);
+  const [botVisible, setBotVisible] = useState(false);
+  const [botFolded, setBotFolded] = useState(false);
   const askBotMessagesRef = useRef<HTMLDivElement | null>(null);
   const hasPlayedAskBotOpenSound = useRef(false);
 
@@ -638,6 +640,11 @@ export default function App() {
     if (!faqOpen || !askBotMessagesRef.current) return;
     askBotMessagesRef.current.scrollTop = askBotMessagesRef.current.scrollHeight;
   }, [askBotMessages, faqOpen]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setBotVisible(true), 5000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const playAskBotOpenSound = () => {
     try {
@@ -2974,7 +2981,14 @@ export default function App() {
           </AnimatePresence>
         </div>
 
-        <div className="faq-widget-wrap">
+        <div
+          className={cn(
+            'faq-widget-wrap',
+            botVisible ? 'faq-widget-visible' : 'faq-widget-hidden',
+            botFolded && 'faq-widget-folded',
+            isLowPerformanceDevice && 'faq-widget-low-perf'
+          )}
+        >
           <AnimatePresence>
             {faqOpen && (
               <motion.div
@@ -3082,41 +3096,59 @@ export default function App() {
               </motion.div>
             )}
           </AnimatePresence>
-          <button
-            onClick={() => {
-              setFaqOpen((prev) => {
-                const next = !prev;
-                if (next && !hasPlayedAskBotOpenSound.current) {
-                  playAskBotOpenSound();
-                  hasPlayedAskBotOpenSound.current = true;
-                }
-                return next;
-              });
-            }}
-            className={cn(
-              'faq-fab',
-              theme === 'dark' ? 'faq-fab-dark' : 'faq-fab-light',
-              !faqOpen && 'faq-fab-dynamic'
-            )}
-            title="Open Ask Me"
-            aria-label="Open Ask Me"
-          >
-            <span className="askbot-fab-robot" aria-hidden="true">
-              <span className="askbot-fab-sleep-bubble askbot-fab-sleep-1">z</span>
-              <span className="askbot-fab-sleep-bubble askbot-fab-sleep-2">z</span>
-              <span className="askbot-fab-head">
-                <span className="askbot-fab-eye askbot-fab-eye-sleep"></span>
-                <span className="askbot-fab-eye askbot-fab-eye-sleep"></span>
+          <div className="faq-bot-row">
+            <button
+              type="button"
+              className={cn('faq-fold-toggle', theme === 'dark' ? 'faq-fold-dark' : 'faq-fold-light')}
+              onClick={() => {
+                setBotFolded((prev) => {
+                  const next = !prev;
+                  if (next) setFaqOpen(false);
+                  return next;
+                });
+              }}
+              title={botFolded ? 'Unfold bot' : 'Fold bot'}
+              aria-label={botFolded ? 'Unfold bot' : 'Fold bot'}
+            >
+              <ChevronRight className={cn('w-4 h-4 transition-transform duration-300', botFolded ? 'rotate-180' : 'rotate-0')} />
+            </button>
+
+            <button
+              onClick={() => {
+                setFaqOpen((prev) => {
+                  const next = !prev;
+                  if (next && !hasPlayedAskBotOpenSound.current) {
+                    playAskBotOpenSound();
+                    hasPlayedAskBotOpenSound.current = true;
+                  }
+                  return next;
+                });
+              }}
+              className={cn(
+                'faq-fab',
+                theme === 'dark' ? 'faq-fab-dark' : 'faq-fab-light',
+                !faqOpen && 'faq-fab-dynamic'
+              )}
+              title="Open Ask Me"
+              aria-label="Open Ask Me"
+            >
+              <span className="askbot-fab-robot" aria-hidden="true">
+                <span className="askbot-fab-sleep-bubble askbot-fab-sleep-1">z</span>
+                <span className="askbot-fab-sleep-bubble askbot-fab-sleep-2">z</span>
+                <span className="askbot-fab-head">
+                  <span className="askbot-fab-eye askbot-fab-eye-sleep"></span>
+                  <span className="askbot-fab-eye askbot-fab-eye-sleep"></span>
+                </span>
+                <span className="askbot-fab-antenna"></span>
+                <span className="askbot-fab-body"></span>
+                <span className="askbot-fab-arm askbot-fab-arm-left"></span>
+                <span className="askbot-fab-arm askbot-fab-arm-right"></span>
+                <span className="askbot-fab-leg askbot-fab-leg-left"></span>
+                <span className="askbot-fab-leg askbot-fab-leg-right"></span>
               </span>
-              <span className="askbot-fab-antenna"></span>
-              <span className="askbot-fab-body"></span>
-              <span className="askbot-fab-arm askbot-fab-arm-left"></span>
-              <span className="askbot-fab-arm askbot-fab-arm-right"></span>
-              <span className="askbot-fab-leg askbot-fab-leg-left"></span>
-              <span className="askbot-fab-leg askbot-fab-leg-right"></span>
-            </span>
-            <span>Ask Me</span>
-          </button>
+              <span>Ask Me</span>
+            </button>
+          </div>
         </div>
 
         {/* Footer */}

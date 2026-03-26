@@ -303,6 +303,101 @@ body {
   flex-direction: column;
   align-items: flex-end;
   gap: 10px;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  transition: transform 360ms cubic-bezier(0.22, 0.8, 0.22, 1), opacity 260ms ease;
+}
+
+.faq-widget-visible {
+  transform: translate3d(0, 0, 0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.faq-widget-hidden {
+  transform: translate3d(130px, 0, 0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.faq-widget-folded {
+  transform: translate3d(0, 0, 0);
+}
+
+.faq-widget-low-perf {
+  transition-duration: 240ms;
+}
+
+.faq-bot-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  transition: transform 320ms cubic-bezier(0.22, 0.8, 0.22, 1);
+}
+
+.faq-widget-folded .faq-bot-row {
+  transform: translate3d(calc(100% - 20px), 0, 0);
+}
+
+.faq-fold-toggle {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  background: linear-gradient(135deg, rgba(8, 23, 44, 0.95), rgba(11, 49, 84, 0.88));
+  color: #bae6fd;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  transition: transform 180ms ease, filter 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+  z-index: 2;
+}
+
+.faq-fold-toggle:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.faq-fold-light {
+  border-color: rgba(14, 116, 144, 0.45);
+  background: linear-gradient(135deg, rgba(224, 242, 254, 0.96), rgba(191, 219, 254, 0.9));
+  color: #0c4a6e;
+}
+
+.faq-fold-dark {
+  border-color: rgba(56, 189, 248, 0.5);
+  background: linear-gradient(135deg, rgba(8, 23, 44, 0.95), rgba(11, 49, 84, 0.88));
+  color: #bae6fd;
+}
+
+.faq-widget-folded .faq-fold-toggle {
+  width: 20px;
+  min-width: 20px;
+  height: 52px;
+  min-height: 52px;
+  border-radius: 12px 0 0 12px;
+  border: 1px solid rgba(56, 189, 248, 0.72);
+  background: linear-gradient(180deg, rgba(8, 32, 58, 0.98), rgba(10, 56, 86, 0.95));
+  color: #67e8f9;
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.3), 0 0 16px rgba(34, 211, 238, 0.45), 0 8px 18px rgba(0, 0, 0, 0.32);
+}
+
+.faq-widget-folded .faq-fold-light,
+.faq-widget-folded .faq-fold-dark {
+  border-color: rgba(56, 189, 248, 0.72);
+  background: linear-gradient(180deg, rgba(8, 32, 58, 0.98), rgba(10, 56, 86, 0.95));
+  color: #67e8f9;
+}
+
+.faq-widget-folded .faq-fold-toggle:hover {
+  transform: none;
+  filter: brightness(1.06);
 }
 
 .faq-fab {
@@ -322,6 +417,16 @@ body {
   text-transform: uppercase;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), 0 0 22px rgba(56, 189, 248, 0.38);
   transition: transform 180ms ease, filter 180ms ease;
+  will-change: transform;
+}
+
+.faq-widget-folded .faq-fab {
+  transform: translate3d(calc(100% + 36px), 0, 0);
+  pointer-events: none;
+}
+
+.faq-widget-folded .faq-fab:hover {
+  transform: translate3d(calc(100% + 36px), 0, 0);
 }
 
 .faq-fab::before {
@@ -1573,6 +1678,18 @@ body {
     bottom: 12px;
   }
 
+  .faq-widget-hidden {
+    transform: translate3d(116px, 0, 0);
+  }
+
+  .faq-widget-folded {
+    transform: translate3d(0, 0, 0);
+  }
+
+  .faq-widget-folded .faq-bot-row {
+    transform: translate3d(calc(100% - 18px), 0, 0);
+  }
+
   .faq-panel {
     width: min(430px, 96vw);
     max-height: min(78vh, 640px);
@@ -1596,6 +1713,20 @@ body {
   .faq-fab {
     padding: 9px 12px;
     font-size: 11px;
+  }
+
+  .faq-fold-toggle {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  .faq-widget-folded .faq-fold-toggle {
+    width: 18px;
+    min-width: 18px;
+    height: 48px;
+    min-height: 48px;
   }
 
   .faq-list {
