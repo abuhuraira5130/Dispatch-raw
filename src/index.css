@@ -365,6 +365,16 @@ body {
   will-change: transform;
 }
 
+.faq-widget-folded .faq-fold-toggle::before {
+  content: '';
+  position: absolute;
+  left: -40px;
+  top: 0;
+  width: 40px;
+  height: 100%;
+  background: transparent;
+}
+
 .faq-fold-toggle:hover {
   transform: translateY(calc(-50% - 1px));
   filter: brightness(1.08);
@@ -417,7 +427,7 @@ body {
   opacity: 0;
   pointer-events: none;
   will-change: transform, opacity;
-  transition: opacity 320ms ease 2s, transform 320ms ease 2s;
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 .fold-peek-particles {
@@ -433,7 +443,7 @@ body {
   filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.78));
   transform: scale(0.78);
   will-change: transform, opacity;
-  transition: opacity 260ms ease 2s, transform 260ms ease 2s;
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 .fold-peek-body {
@@ -442,7 +452,7 @@ body {
   opacity: 0;
   transform: translate3d(8px, 0, 0) scale(0.78);
   will-change: transform, opacity;
-  transition: opacity 260ms ease 2s, transform 260ms ease 2s;
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 .fold-peek-head {
@@ -480,18 +490,21 @@ body {
 }
 
 .faq-widget-folded .fold-peek-robot {
+  transition-delay: 2s;
   opacity: 1;
   transform: translate3d(0, -50%, 0) scale(1);
   animation: fold-peek-funny 2.2s ease-in-out 2.35s infinite;
 }
 
 .faq-widget-folded .fold-peek-particles {
+  transition-delay: 2s;
   opacity: 0.82;
   transform: scale(1);
   animation: fold-peek-sparkle 1.35s ease-in-out 2.25s infinite;
 }
 
 .faq-widget-folded .fold-peek-body {
+  transition-delay: 2s;
   opacity: 1;
   transform: translate3d(0, 0, 0) scale(1);
 }
