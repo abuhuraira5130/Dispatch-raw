@@ -345,12 +345,12 @@ body {
 .faq-fold-toggle {
   position: absolute;
   top: 50%;
-  right: -22px;
+  right: -14px;
   transform: translateY(-50%);
-  width: 16px;
-  height: 22px;
-  min-width: 16px;
-  min-height: 22px;
+  width: 18px;
+  height: 24px;
+  min-width: 18px;
+  min-height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -383,7 +383,7 @@ body {
 }
 
 .faq-widget-folded .faq-fold-toggle {
-  right: -18px;
+  right: -10px;
   width: 16px;
   min-width: 16px;
   height: 52px;
@@ -409,14 +409,15 @@ body {
 
 .fold-peek-robot {
   position: absolute;
-  left: -32px;
-  top: 50%;
-  width: 28px;
-  height: 28px;
-  transform: translate3d(0, -50%, 0);
+  left: -40px;
+  top: 52%;
+  width: 34px;
+  height: 34px;
+  transform: translate3d(4px, -50%, 0) scale(0.92);
   opacity: 0;
   pointer-events: none;
   will-change: transform, opacity;
+  transition: opacity 320ms ease 2s, transform 320ms ease 2s;
 }
 
 .fold-peek-particles {
@@ -430,24 +431,26 @@ body {
     radial-gradient(circle at 38% 78%, rgba(125, 211, 252, 0.75) 0 1px, transparent 2px);
   opacity: 0;
   filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.78));
-  transform: scale(0.65);
+  transform: scale(0.78);
   will-change: transform, opacity;
+  transition: opacity 260ms ease 2s, transform 260ms ease 2s;
 }
 
 .fold-peek-body {
   position: absolute;
   inset: 0;
   opacity: 0;
-  transform: translate3d(9px, 1px, 0) scale(0.74);
+  transform: translate3d(8px, 0, 0) scale(0.78);
   will-change: transform, opacity;
+  transition: opacity 260ms ease 2s, transform 260ms ease 2s;
 }
 
 .fold-peek-head {
   position: absolute;
-  top: 2px;
-  left: 3px;
-  width: 20px;
-  height: 12px;
+  top: 3px;
+  left: 5px;
+  width: 24px;
+  height: 14px;
   border-radius: 7px;
   border: 1px solid rgba(125, 211, 252, 0.9);
   background: linear-gradient(150deg, rgba(8, 47, 73, 0.95), rgba(14, 116, 144, 0.82));
@@ -458,8 +461,8 @@ body {
 }
 
 .fold-peek-eye {
-  width: 3px;
-  height: 3px;
+  width: 4px;
+  height: 4px;
   border-radius: 999px;
   background: #ecfeff;
   box-shadow: 0 0 5px rgba(34, 211, 238, 0.85);
@@ -467,9 +470,9 @@ body {
 
 .fold-peek-arm {
   position: absolute;
-  right: 1px;
-  top: 14px;
-  width: 8px;
+  right: 2px;
+  top: 16px;
+  width: 10px;
   height: 3px;
   border-radius: 99px;
   transform-origin: left center;
@@ -477,23 +480,28 @@ body {
 }
 
 .faq-widget-folded .fold-peek-robot {
-  animation: fold-peek-cycle 3.6s cubic-bezier(0.25, 0.6, 0.2, 1) infinite;
+  opacity: 1;
+  transform: translate3d(0, -50%, 0) scale(1);
+  animation: fold-peek-funny 2.2s ease-in-out 2.35s infinite;
 }
 
 .faq-widget-folded .fold-peek-particles {
-  animation: fold-peek-particles 3.6s ease-in-out infinite;
+  opacity: 0.82;
+  transform: scale(1);
+  animation: fold-peek-sparkle 1.35s ease-in-out 2.25s infinite;
 }
 
 .faq-widget-folded .fold-peek-body {
-  animation: fold-peek-materialize 3.6s cubic-bezier(0.22, 0.8, 0.22, 1) infinite;
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
 }
 
 .faq-widget-folded .fold-peek-eye {
-  animation: fold-peek-eye-blink 3.6s linear infinite, fold-peek-eye-glitch 3.6s linear infinite;
+  animation: fold-peek-eye-blink 2.2s linear 2.3s infinite, fold-peek-eye-glitch 2.2s linear 2.3s infinite;
 }
 
 .faq-widget-folded .fold-peek-arm {
-  animation: fold-peek-wave 3.6s ease-in-out infinite;
+  animation: fold-peek-wave 2.2s ease-in-out 2.3s infinite;
 }
 
 .faq-widget-low-perf .fold-peek-particles {
@@ -504,7 +512,8 @@ body {
 .faq-widget-low-perf .faq-widget-folded .fold-peek-body,
 .faq-widget-low-perf .faq-widget-folded .fold-peek-eye,
 .faq-widget-low-perf .faq-widget-folded .fold-peek-arm {
-  animation-duration: 4.8s;
+  animation-duration: 3.4s;
+  animation-delay: 2.2s;
 }
 
 .faq-fab {
@@ -1275,6 +1284,32 @@ body {
   }
 }
 
+@keyframes fold-peek-funny {
+  0%, 100% {
+    transform: translate3d(0, -50%, 0) rotate(0deg);
+  }
+  22% {
+    transform: translate3d(0, calc(-50% - 1px), 0) rotate(-5deg);
+  }
+  46% {
+    transform: translate3d(0, calc(-50% - 1px), 0) rotate(5deg);
+  }
+  70% {
+    transform: translate3d(0, -50%, 0) rotate(-2deg);
+  }
+}
+
+@keyframes fold-peek-sparkle {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.08);
+  }
+}
+
 @keyframes askbot-fab-color-cycle {
   0%, 100% {
     border-color: rgba(56, 189, 248, 0.62);
@@ -1925,19 +1960,19 @@ body {
   }
 
   .faq-fold-toggle {
-    right: -20px;
-    width: 15px;
-    height: 20px;
-    min-width: 15px;
-    min-height: 20px;
+    right: -12px;
+    width: 16px;
+    height: 22px;
+    min-width: 16px;
+    min-height: 22px;
   }
 
   .faq-widget-folded .faq-fold-toggle {
-    right: -16px;
-    width: 14px;
-    min-width: 14px;
-    height: 48px;
-    min-height: 48px;
+    right: -8px;
+    width: 15px;
+    min-width: 15px;
+    height: 46px;
+    min-height: 46px;
   }
 
   .faq-list {
