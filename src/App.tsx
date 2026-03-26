@@ -44,9 +44,7 @@ import {
   Bell,
   X,
   Bot,
-  Send,
-  Maximize2,
-  Minimize2
+  Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -447,7 +445,6 @@ export default function App() {
   const [askBotMessages, setAskBotMessages] = useState<AskBotMessage[]>([]);
   const [botVisible, setBotVisible] = useState(false);
   const [botFolded, setBotFolded] = useState(false);
-  const [askBotPanelExpanded, setAskBotPanelExpanded] = useState(false);
   const [askBotStrikeCount, setAskBotStrikeCount] = useState(0);
   const [askBotSessionTerminated, setAskBotSessionTerminated] = useState(false);
   const [askBotHourMessageCount, setAskBotHourMessageCount] = useState(0);
@@ -698,14 +695,6 @@ export default function App() {
     const timer = window.setTimeout(() => setBotVisible(true), 5000);
     return () => window.clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    document.body.style.overflow = askBotPanelExpanded ? 'hidden' : '';
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [askBotPanelExpanded]);
 
   useEffect(() => {
     const oneHourAgo = Date.now() - 60 * 60 * 1000;
@@ -1153,10 +1142,6 @@ export default function App() {
       );
       setHelpAgentBusy(false);
     }, delay);
-  };
-
-  const handleAskBotFullscreenToggle = () => {
-    setAskBotPanelExpanded((prev) => !prev);
   };
 
 
@@ -3330,8 +3315,7 @@ export default function App() {
                 transition={{ duration: 0.22, ease: 'easeOut' }}
                 className={cn(
                   'faq-panel',
-                  theme === 'dark' ? 'faq-panel-dark' : 'faq-panel-light',
-                  askBotPanelExpanded && 'askbot-panel-expanded'
+                  theme === 'dark' ? 'faq-panel-dark' : 'faq-panel-light'
                 )}
                 role="dialog"
                 aria-label="Ask Me panel"
@@ -3343,18 +3327,7 @@ export default function App() {
                   </div>
                   <div className="askbot-head-actions">
                     <button
-                      onClick={handleAskBotFullscreenToggle}
-                      className="askbot-head-icon-btn"
-                      aria-label={askBotPanelExpanded ? 'Exit full screen' : 'Enter full screen'}
-                      title={askBotPanelExpanded ? 'Exit full screen' : 'Enter full screen'}
-                    >
-                      {askBotPanelExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setFaqOpen(false);
-                        setAskBotPanelExpanded(false);
-                      }}
+                      onClick={() => setFaqOpen(false)}
                       className="askbot-head-icon-btn faq-panel-close"
                       aria-label="Close Ask Me"
                       title="Close Ask Me"
