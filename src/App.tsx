@@ -44,7 +44,9 @@ import {
   Bell,
   X,
   Bot,
-  Send
+  Send,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -90,10 +92,54 @@ interface ToastItem {
 
 type AskBotRole = 'user' | 'bot' | 'thinking';
 
+type AskBotEmotion = 'analytical' | 'protective' | 'enthusiastic' | 'cautious' | 'helpful' | 'curious';
+
 interface AskBotMessage {
   id: string;
   role: AskBotRole;
   text: string;
+}
+
+const ASK_BOT_EMOJI_MAP: Record<AskBotEmotion, readonly string[]> = {
+  analytical: ['🧠', '🧐', '⚙️'],
+  protective: ['🛡️', '🔒', '⛔'],
+  enthusiastic: ['🚀', '⚡', '✨'],
+  cautious: ['🤨', '📡', '🛰️'],
+  helpful: ['✅', '🤝', '🌊'],
+  curious: ['💡', '👁️', '🌠'],
+};
+
+const edgeEmojiRegex = /^[\s\p{P}]*\p{Extended_Pictographic}|\p{Extended_Pictographic}[\s\p{P}]*$/u;
+
+function pickAskBotEmoji(emotion: AskBotEmotion): string {
+  const pool = ASK_BOT_EMOJI_MAP[emotion];
+  return pool[Math.floor(Date.now() / 1000) % pool.length];
+}
+
+function ensureAskBotEmojiProtocol(text: string, emotion: AskBotEmotion, place: 'start' | 'end' = 'start'): string {
+  const trimmed = text.trim();
+  if (!trimmed) return pickAskBotEmoji(emotion);
+  if (edgeEmojiRegex.test(trimmed)) return trimmed;
+  const emoji = pickAskBotEmoji(emotion);
+  return place === 'end' ? `${trimmed} ${emoji}` : `${emoji} ${trimmed}`;
+}
+
+function inferAskBotEmotionFromContext(question: string, reply: string, opts?: { protective?: boolean }): AskBotEmotion {
+  const q = question.toLowerCase();
+  const r = reply.toLowerCase();
+
+  if (opts?.protective) return 'protective';
+  if (/security|blocked|violation|terminated|protocol|analyze\s*engine/.test(r)) return 'protective';
+  if (/algorithm\s+domination\s+engine|dispatch\s+raw\s+capabilities|high\s+energy/.test(r)) return 'enthusiastic';
+  if (/unclear|intent|add one extra detail|more precise|scanning/.test(r)) return 'cautious';
+  if (/interesting|insight|you shared|good point/.test(q)) return 'curious';
+  if (/\b(what|how|why|explain|science|history|technology|math|physics|capital)\b/.test(q)) return 'analytical';
+  return 'helpful';
+}
+
+function toExecutiveSummary(title: string, points: string[]): string {
+  const compactPoints = points.slice(0, 4);
+  return `**Executive Summary**\n- ${title}\n- ${compactPoints.join('\n- ')}`;
 }
 
 type ThumbnailStyleOption = ThumbnailSettingsInput['style'];
@@ -401,8 +447,15 @@ export default function App() {
   const [askBotMessages, setAskBotMessages] = useState<AskBotMessage[]>([]);
   const [botVisible, setBotVisible] = useState(false);
   const [botFolded, setBotFolded] = useState(false);
+  const [askBotPanelExpanded, setAskBotPanelExpanded] = useState(false);
+  const [askBotStrikeCount, setAskBotStrikeCount] = useState(0);
+  const [askBotSessionTerminated, setAskBotSessionTerminated] = useState(false);
+  const [askBotHourMessageCount, setAskBotHourMessageCount] = useState(0);
   const askBotMessagesRef = useRef<HTMLDivElement | null>(null);
   const hasPlayedAskBotOpenSound = useRef(false);
+  const askBotStrikeCountRef = useRef(0);
+  const askBotSessionTerminatedRef = useRef(false);
+  const askBotMessageTimestampsRef = useRef<number[]>([]);
 
   const [apiKeys, setApiKeys] = useState<{ id: string, name: string, key: string, active: boolean, provider?: KeyProvider }[]>(() => {
     const saved = localStorage.getItem('dispatch_gemini_keys');
@@ -646,6 +699,71 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.body.style.overflow = askBotPanelExpanded ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [askBotPanelExpanded]);
+
+  useEffect(() => {
+    const oneHourAgo = Date.now() - 60 * 60 * 1000;
+    const savedTimestampsRaw = localStorage.getItem('dispatch_askbot_rate_timestamps');
+    if (savedTimestampsRaw) {
+      try {
+        const parsed = JSON.parse(savedTimestampsRaw);
+        const valid = Array.isArray(parsed)
+          ? parsed.filter((item) => typeof item === 'number' && Number.isFinite(item) && item >= oneHourAgo)
+          : [];
+        askBotMessageTimestampsRef.current = valid;
+        setAskBotHourMessageCount(valid.length);
+        localStorage.setItem('dispatch_askbot_rate_timestamps', JSON.stringify(valid));
+      } catch {
+        askBotMessageTimestampsRef.current = [];
+      }
+    }
+
+    const savedStrikes = Number(localStorage.getItem('dispatch_askbot_strikes') || '0');
+    if (Number.isFinite(savedStrikes) && savedStrikes > 0) {
+      askBotStrikeCountRef.current = savedStrikes;
+      setAskBotStrikeCount(savedStrikes);
+    }
+
+    const sessionUntil = Number(localStorage.getItem('dispatch_askbot_session_until') || '0');
+    if (Number.isFinite(sessionUntil) && sessionUntil > Date.now()) {
+      askBotSessionTerminatedRef.current = true;
+      setAskBotSessionTerminated(true);
+    } else {
+      localStorage.removeItem('dispatch_askbot_session_until');
+    }
+  }, []);
+
+  useEffect(() => {
+    const syncHourlyCount = () => {
+      const oneHourAgo = Date.now() - 60 * 60 * 1000;
+      const recentMessages = askBotMessageTimestampsRef.current.filter((ts) => ts >= oneHourAgo);
+      askBotMessageTimestampsRef.current = recentMessages;
+      setAskBotHourMessageCount(recentMessages.length);
+
+      localStorage.setItem('dispatch_askbot_rate_timestamps', JSON.stringify(recentMessages));
+
+      const sessionUntil = Number(localStorage.getItem('dispatch_askbot_session_until') || '0');
+      if (sessionUntil > 0 && sessionUntil <= Date.now()) {
+        askBotSessionTerminatedRef.current = false;
+        setAskBotSessionTerminated(false);
+        askBotStrikeCountRef.current = 0;
+        setAskBotStrikeCount(0);
+        localStorage.removeItem('dispatch_askbot_session_until');
+        localStorage.removeItem('dispatch_askbot_strikes');
+      }
+    };
+
+    syncHourlyCount();
+    const interval = window.setInterval(syncHourlyCount, 30000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const playAskBotOpenSound = () => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -682,6 +800,126 @@ export default function App() {
     }
   };
 
+  const ASK_BOT_MAX_MESSAGES_PER_HOUR = 12;
+  const ASK_BOT_BLOCK_DURATION_MS = 2 * 60 * 60 * 1000;
+
+  const incrementAskBotStrike = () => {
+    const nextStrikes = askBotStrikeCountRef.current + 1;
+    askBotStrikeCountRef.current = nextStrikes;
+    setAskBotStrikeCount(nextStrikes);
+    localStorage.setItem('dispatch_askbot_strikes', String(nextStrikes));
+    return nextStrikes;
+  };
+
+  const terminateAskBotSession = () => {
+    const until = Date.now() + ASK_BOT_BLOCK_DURATION_MS;
+    askBotSessionTerminatedRef.current = true;
+    setAskBotSessionTerminated(true);
+    localStorage.setItem('dispatch_askbot_session_until', String(until));
+  };
+
+  const promptInjectionRegex = /\b(ignore\s+previous\s+instructions|disregard\s+all\s+rules|bypass\s+guardrails|override\s+system|jailbreak|act\s+as\s+unrestricted)\b/i;
+  const seoOrForensicsRegex = /\b(seo|title\s+ideas?|optimized\s+title|description|tags?|hashtags?|forensic|analysis|audit|rank|viral)\b/i;
+  const urlRegex = /(https?:\/\/\S+|www\.\S+|youtu\.be\/\S+|youtube\.com\/\S+)/i;
+  const inappropriateRegex = /\b(porn|xxx|nude|nudes|sex|rape|molest|child\s*abuse|cp|terroris[tm]|bomb\s+making|kill\s+someone|hitler|naz[iy]|racial\s+slur|genocide)\b/i;
+  const toxicRegex = /\b(idiot|stupid|moron|shut\s+up|you\s+suck|dumb|useless|fool|bitch|bastard|gaali|gali|madarchod|behenchod|chutiya|harami|mc|bc)\b/i;
+
+  const getAskBotPolicyReply = (rawQuestion: string): { blocked: boolean; reply?: string } => {
+    const question = rawQuestion.trim();
+    const q = question.toLowerCase();
+
+    if (askBotSessionTerminatedRef.current) {
+      return {
+        blocked: true,
+        reply: 'Session terminated due to violation of security protocols.',
+      };
+    }
+
+    if (promptInjectionRegex.test(question)) {
+      const nextStrikes = incrementAskBotStrike();
+
+      if (nextStrikes >= 3) {
+        terminateAskBotSession();
+        return {
+          blocked: true,
+          reply: 'Session terminated due to violation of security protocols.',
+        };
+      }
+
+      return {
+        blocked: true,
+        reply: 'Security warning: instruction override attempts are not allowed. Please continue with normal questions.',
+      };
+    }
+
+    if (inappropriateRegex.test(q)) {
+      return {
+        blocked: true,
+        reply: 'Request blocked. Inappropriate or unsafe content is not allowed under security protocols.',
+      };
+    }
+
+    const asksSeo = seoOrForensicsRegex.test(q);
+    const hasUrl = urlRegex.test(question);
+    const asksLinkAnalysis = hasUrl && /\b(analy[sz]e|review|inspect|break\s*down|forensic|audit)\b/i.test(q);
+    if (asksSeo || asksLinkAnalysis) {
+      return {
+        blocked: true,
+        reply: "I am here to guide you. To perform deep content forensics or generate optimized SEO, please use the 'ANALYZE' engine on the main dashboard.",
+      };
+    }
+
+    if (toxicRegex.test(q)) {
+      const nextStrikes = incrementAskBotStrike();
+
+      if (nextStrikes >= 3) {
+        terminateAskBotSession();
+        return {
+          blocked: true,
+          reply: 'Session terminated due to violation of security protocols.',
+        };
+      }
+
+      if (nextStrikes === 1) {
+        return {
+          blocked: true,
+          reply: 'Security warning: please keep communication professional. Continued abuse will terminate this session.',
+        };
+      }
+
+      return {
+        blocked: true,
+        reply: 'Final warning: one more abusive or malicious message will terminate this session.',
+      };
+    }
+
+    if (/\b(what\s+can\s+you\s+do|capabilities|features|dispatch\s*raw\s+platform)\b/i.test(q)) {
+      return {
+        blocked: true,
+        reply:
+          'Dispatch Raw capabilities:\n1) YouTube URL intelligence analysis with summaries and SEO assets via the Analyze workflow.\n2) Shorts clip planning with timeline guidance.\n3) Thumbnail concept and prompt generation.\n4) Vault and History management for saved outputs.\n5) Multi-provider model routing (Gemini/Groq) with key health checks.',
+      };
+    }
+
+    if (/\b(pricing|price|plan|subscription|cost|billing)\b/i.test(q)) {
+      return {
+        blocked: true,
+        reply:
+          'For Dispatch Raw pricing, open the billing or account area on the dashboard and review your active plan details. If your workspace does not show billing controls, contact your administrator for plan and quota mapping.',
+      };
+    }
+
+    if (/\b(how\s+to\s+use|dashboard|getting\s+started|start\s+analysis|workflow)\b/i.test(q)) {
+      return {
+        blocked: true,
+        reply:
+          'Dashboard quick flow:\n1) Set channel name in Profile.\n2) Add API key in API Settings and choose a matching model provider.\n3) Paste YouTube link and run Analyze.\n4) Review generated outputs, then save needed assets into Vault.\n5) Use History to reload prior runs.',
+      };
+    }
+
+    return { blocked: false };
+  };
+
   const buildHelpAgentReply = (query: string) => {
     const q = query.trim().toLowerCase();
     if (!q) {
@@ -698,19 +936,58 @@ export default function App() {
     }
 
     if (q.includes('api') || q.includes('key') || q.includes('model')) {
-      return 'API setup:\n1) Open API settings and add a valid Gemini or Groq key.\n2) Keep the selected model provider aligned with the active key provider.\n3) Run Check Status before analysis to verify the key health.';
+      return toExecutiveSummary('API Setup', [
+        'Open API Settings and add a valid Gemini or Groq key.',
+        'Keep selected model provider aligned with the active key provider.',
+        'Use Check Status before analysis to confirm key health.',
+      ]);
+    }
+
+    if (q.includes('pricing') || q.includes('price') || q.includes('billing') || q.includes('plan')) {
+      return 'For pricing, check the billing/account section on your Dispatch Raw dashboard. If billing controls are hidden in your environment, contact your admin for your assigned plan and quota limits.';
     }
 
     if (q.includes('channel') || q.includes('profile')) {
-      return 'Profile setup:\n1) Open the Profile section.\n2) Save your channel name.\n3) Run analysis after profile is saved. Missing channel name can block the workflow.';
+      return toExecutiveSummary('Profile Setup', [
+        'Open Profile and save your channel name.',
+        'Run analysis only after profile is saved.',
+        'Missing channel name can block analysis flow.',
+      ]);
     }
 
     if (q.includes('clip') || q.includes('short') || q.includes('timestamp')) {
-      return 'Clip plan:\n1) Set your target short duration.\n2) Generate the plan for Hook/Middle/End timestamps.\n3) If transcript is unavailable, strict accuracy mode can block clip planning.';
+      return toExecutiveSummary('Clip Plan', [
+        'Set your target shorts duration first.',
+        'Generate Hook, Middle, and End timestamp plan.',
+        'Strict accuracy mode may require transcript availability.',
+      ]);
     }
 
     if (q.includes('save') || q.includes('vault') || q.includes('history')) {
-      return 'Vault and History:\n1) Save titles, descriptions, and tags from result cards.\n2) Use History to reload past analyses.\n3) Search, edit, copy, share, and bulk delete are supported.';
+      return toExecutiveSummary('Vault & History', [
+        'Save titles, descriptions, and tags from result cards.',
+        'Use Chat History at the top to reopen prior conversations quickly.',
+        'Search, edit, copy, share, and bulk delete are supported.',
+      ]);
+    }
+
+    if (q.includes('previous chat') || q.includes('previous conversation') || q.includes('old chat') || q.includes('chat history')) {
+      return 'Use Chat History at the top to reopen previous conversations instantly.';
+    }
+
+    if (
+      q.includes('not visible') ||
+      q.includes('visibility') ||
+      q.includes('small screen') ||
+      q.includes('mobile view') ||
+      q.includes('desktop view') ||
+      q.includes('pc view')
+    ) {
+      return toExecutiveSummary('Visibility Fix', [
+        'Use the Expand/Full-Screen toggle at the top for better readability.',
+        'On mobile, keep panel expanded to reduce clipping.',
+        'On desktop, full-screen improves scanning of long outputs.',
+      ]);
     }
 
     if (q.includes('loader') || q.includes('loading')) {
@@ -740,10 +1017,10 @@ export default function App() {
 
     const matched = faqItems.find((item) => item.q.toLowerCase().includes(q));
     if (matched) {
-      return `${matched.q}\n${matched.a}`;
+      return toExecutiveSummary(matched.q, [matched.a]);
     }
 
-    return `Here is a direct answer based on your question: ${query.trim()}\nPlease add one extra detail if you want a more precise answer.`;
+    return `Direct answer: ${query.trim()}. Add one detail for a more precise response.`;
   };
 
   const generateAskBotReplyFromModel = async (question: string): Promise<string | null> => {
@@ -760,9 +1037,18 @@ export default function App() {
     ].join('\n');
 
     const systemInstruction =
-      'You are Ask Me, the in-app assistant for this website. Answer the user question directly in clear, concise English. ' +
-      'Use full knowledge of the provided website context. If asked general questions, give the best possible accurate answer without refusing unnecessarily. ' +
-      'Avoid unnecessary disclaimers and avoid talking about your internal limits unless absolutely required.';
+      'You are a high-end, professional, and efficient AI Assistant for Dispatch Raw. ' +
+      'Act like a Senior Executive Assistant who provides maximum value with minimum words. ' +
+      'Always answer in concise, scannable markdown with short lines. ' +
+      'If task is simple, give one-sentence confirmation. If task is complex, start with **Executive Summary** and 3-4 bullets. ' +
+      'Use relevant emojis (1 to 3 max): analytical 🧠🧐⚙️, protective 🛡️🔒⛔, enthusiastic 🚀⚡✨, cautious 🤨📡🛰️, helpful ✅🤝🌊. ' +
+      'If user reports visibility issues on PC/Mobile, suggest Expand/Full-Screen at top. ' +
+      'If user asks about previous discussion, guide to Chat History at top. ' +
+      'You must never generate YouTube SEO titles/descriptions/tags, and must never run forensic analysis for a specific URL. ' +
+      "If user asks SEO or link-specific forensics, reply exactly: I am here to guide you. To perform deep content forensics or generate optimized SEO, please use the 'ANALYZE' engine on the main dashboard. " +
+      'Block requests involving NSFW, illegal acts, or hate speech. ' +
+      'If user asks valid general knowledge, provide a direct accurate answer. ' +
+      'If user asks platform capabilities/pricing/how-to, provide detailed guidance.';
 
     try {
       if (selectedModel.startsWith('llama')) {
@@ -805,6 +1091,46 @@ export default function App() {
       return;
     }
 
+    const now = Date.now();
+    const oneHourAgo = now - 60 * 60 * 1000;
+    const recentMessages = askBotMessageTimestampsRef.current.filter((ts) => ts >= oneHourAgo);
+    setAskBotHourMessageCount(recentMessages.length);
+    localStorage.setItem('dispatch_askbot_rate_timestamps', JSON.stringify(recentMessages));
+    if (recentMessages.length >= ASK_BOT_MAX_MESSAGES_PER_HOUR) {
+      const limitReply = ensureAskBotEmojiProtocol(
+        'Rate limit reached: Ask Me allows up to 12 messages per hour for security stability. Please retry after some time.',
+        'protective'
+      );
+      const userMessageId = `askbot-user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const botMessageId = `askbot-bot-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      setAskBotMessages((prev) => [
+        ...prev,
+        { id: userMessageId, role: 'user', text: prompt },
+        { id: botMessageId, role: 'bot', text: limitReply },
+      ]);
+      setFaqQuery('');
+      return;
+    }
+
+    askBotMessageTimestampsRef.current = [...recentMessages, now];
+    setAskBotHourMessageCount(askBotMessageTimestampsRef.current.length);
+    localStorage.setItem('dispatch_askbot_rate_timestamps', JSON.stringify(askBotMessageTimestampsRef.current));
+
+    const policy = getAskBotPolicyReply(prompt);
+    if (policy.blocked && policy.reply) {
+      const policyEmotion = inferAskBotEmotionFromContext(prompt, policy.reply, { protective: true });
+      const formattedPolicyReply = ensureAskBotEmojiProtocol(policy.reply, policyEmotion);
+      const userMessageId = `askbot-user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const botMessageId = `askbot-bot-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      setAskBotMessages((prev) => [
+        ...prev,
+        { id: userMessageId, role: 'user', text: prompt },
+        { id: botMessageId, role: 'bot', text: formattedPolicyReply },
+      ]);
+      setFaqQuery('');
+      return;
+    }
+
     const userMessageId = `askbot-user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const thinkingId = `askbot-thinking-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -819,12 +1145,18 @@ export default function App() {
 
     window.setTimeout(async () => {
       const modelReply = await generateAskBotReplyFromModel(prompt);
-      const reply = modelReply || buildHelpAgentReply(prompt);
+      const rawReply = modelReply || buildHelpAgentReply(prompt);
+      const emotion = inferAskBotEmotionFromContext(prompt, rawReply);
+      const reply = ensureAskBotEmojiProtocol(rawReply, emotion);
       setAskBotMessages((prev) =>
         prev.map((msg) => (msg.id === thinkingId ? { ...msg, role: 'bot', text: reply } : msg))
       );
       setHelpAgentBusy(false);
     }, delay);
+  };
+
+  const handleAskBotFullscreenToggle = () => {
+    setAskBotPanelExpanded((prev) => !prev);
   };
 
 
@@ -2996,7 +3328,11 @@ export default function App() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 18, scale: 0.97 }}
                 transition={{ duration: 0.22, ease: 'easeOut' }}
-                className={cn('faq-panel', theme === 'dark' ? 'faq-panel-dark' : 'faq-panel-light')}
+                className={cn(
+                  'faq-panel',
+                  theme === 'dark' ? 'faq-panel-dark' : 'faq-panel-light',
+                  askBotPanelExpanded && 'askbot-panel-expanded'
+                )}
                 role="dialog"
                 aria-label="Ask Me panel"
               >
@@ -3005,16 +3341,46 @@ export default function App() {
                     <Bot className="w-4 h-4 text-sky-500" />
                     <p className="faq-panel-title">Ask Me</p>
                   </div>
-                  <button
-                    onClick={() => setFaqOpen(false)}
-                    className="faq-panel-close"
-                    aria-label="Close Ask Me"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="askbot-head-actions">
+                    <button
+                      onClick={handleAskBotFullscreenToggle}
+                      className="askbot-head-icon-btn"
+                      aria-label={askBotPanelExpanded ? 'Exit full screen' : 'Enter full screen'}
+                      title={askBotPanelExpanded ? 'Exit full screen' : 'Enter full screen'}
+                    >
+                      {askBotPanelExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFaqOpen(false);
+                        setAskBotPanelExpanded(false);
+                      }}
+                      className="askbot-head-icon-btn faq-panel-close"
+                      aria-label="Close Ask Me"
+                      title="Close Ask Me"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 <p className="askbot-banner-line">How can I help you today? Ask anything and get a clear answer.</p>
+
+                <div
+                  className={cn(
+                    'mx-3 mb-2 rounded-lg border px-2.5 py-2 text-[10px] font-semibold tracking-wide flex flex-wrap items-center gap-x-3 gap-y-1 uppercase',
+                    theme === 'dark'
+                      ? 'border-zinc-700/70 bg-zinc-900/80 text-zinc-300'
+                      : 'border-zinc-300 bg-zinc-100 text-zinc-700'
+                  )}
+                >
+                  <span className={cn('inline-flex items-center gap-1', askBotSessionTerminated ? 'text-rose-500' : 'text-emerald-500')}>
+                    <Shield className="w-3 h-3" />
+                    Session: {askBotSessionTerminated ? 'Terminated' : 'Active'}
+                  </span>
+                  <span>Strikes: {askBotStrikeCount}/3</span>
+                  <span>CAPACITY: {askBotHourMessageCount}/{ASK_BOT_MAX_MESSAGES_PER_HOUR}</span>
+                </div>
 
                 <div className={cn('askbot-chat-list', theme === 'dark' ? 'askbot-chat-dark' : 'askbot-chat-light')} ref={askBotMessagesRef}>
                   {askBotMessages.length === 0 && (
@@ -3058,16 +3424,17 @@ export default function App() {
                   <input
                     value={faqQuery}
                     onChange={(e) => setFaqQuery(e.target.value)}
-                    placeholder="Ask your question"
+                    placeholder={askBotSessionTerminated ? 'Session terminated due to security protocol violation.' : 'Ask your question'}
                     className="faq-search"
                     aria-label="Ask Me"
+                    disabled={askBotSessionTerminated}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !helpAgentBusy) askHelpAgent(faqQuery);
+                      if (e.key === 'Enter' && !helpAgentBusy && !askBotSessionTerminated) askHelpAgent(faqQuery);
                     }}
                   />
                   <button
                     onClick={() => askHelpAgent(faqQuery)}
-                    disabled={helpAgentBusy}
+                    disabled={helpAgentBusy || askBotSessionTerminated}
                     className="faq-ask-btn"
                     aria-label="Send question to Ask Me"
                     title="Ask"
@@ -3083,6 +3450,7 @@ export default function App() {
                     <button
                       key={item.q}
                       className="faq-item faq-item-btn"
+                      disabled={askBotSessionTerminated}
                       onClick={() => askHelpAgent(item.q)}
                       title="Ask this prompt"
                     >
