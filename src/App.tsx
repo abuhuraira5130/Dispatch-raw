@@ -2776,36 +2776,37 @@ export default function App() {
 
                 {result && (
                   <div className="space-y-8">
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                    <div className="relative z-20 grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3">
                       <button
                         onClick={handleBackToHomePage}
                         className={cn(
-                          'group inline-flex h-9 sm:h-10 max-w-full min-w-[8.75rem] sm:min-w-[10.5rem] items-center justify-between rounded-lg px-3 sm:px-3.5 text-[10px] sm:text-[11px] font-black uppercase tracking-wide transition-all border',
+                          'group inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg px-2.5 sm:h-10 sm:w-auto sm:min-w-[10.5rem] sm:justify-between sm:px-3.5 text-[10px] sm:text-[11px] font-black uppercase tracking-wide transition-all border',
                           theme === 'dark'
                             ? 'border-emerald-400/40 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 text-emerald-300 hover:border-emerald-300/70 hover:shadow-[0_0_24px_rgba(16,185,129,0.25)]'
                             : 'border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 text-emerald-800 hover:border-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.2)]'
                         )}
                         title="Go to home page"
                       >
-                        <span>Back Home</span>
+                        <span className="truncate">Back Home</span>
                         <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                       </button>
 
-                    {optimalUploadTime && audienceActivityData && (
-                        <button
-                          onClick={() => focusUploadOptimizerSection(true)}
-                          className={cn(
-                            'group inline-flex h-9 sm:h-10 max-w-full min-w-[8.75rem] sm:min-w-[10.5rem] items-center justify-between rounded-lg px-3 sm:px-3.5 text-[10px] sm:text-[11px] font-black uppercase tracking-wide transition-all border',
-                            theme === 'dark'
+                      <button
+                        onClick={() => focusUploadOptimizerSection(true)}
+                        disabled={!optimalUploadTime || !audienceActivityData}
+                        className={cn(
+                          'group inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg px-2.5 sm:h-10 sm:w-auto sm:min-w-[10.5rem] sm:justify-between sm:px-3.5 text-[10px] sm:text-[11px] font-black uppercase tracking-wide transition-all border',
+                          !optimalUploadTime || !audienceActivityData
+                            ? 'border-zinc-500/30 bg-zinc-500/10 text-zinc-500 cursor-not-allowed'
+                            : theme === 'dark'
                               ? 'border-cyan-400/40 bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-blue-500/10 text-cyan-300 hover:border-cyan-300/70 hover:shadow-[0_0_24px_rgba(34,211,238,0.25)]'
                               : 'border-cyan-300 bg-gradient-to-r from-cyan-50 via-sky-50 to-blue-50 text-cyan-800 hover:border-cyan-400 hover:shadow-[0_0_20px_rgba(14,165,233,0.2)]'
-                          )}
-                          title="Go to Upload Time Optimizer"
-                        >
-                          <span>Upload Studio</span>
-                          <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-                        </button>
-                    )}
+                        )}
+                        title="Go to Upload Time Optimizer"
+                      >
+                        <span className="truncate">Upload Studio</span>
+                        <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                      </button>
                     </div>
 
                     {/* Video Preview */}
