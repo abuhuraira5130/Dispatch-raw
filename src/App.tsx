@@ -83,6 +83,30 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+function clampYoutubeTagsTo500(rawTags: string): string {
+  const maxChars = 500;
+  const parts = String(rawTags || '')
+    .split(',')
+    .map((tag) => tag.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+  const seen = new Set<string>();
+  const selected: string[] = [];
+  let totalLength = 0;
+
+  for (const tag of parts) {
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    const additional = selected.length === 0 ? tag.length : tag.length + 2;
+    if (totalLength + additional > maxChars) continue;
+    seen.add(key);
+    selected.push(tag);
+    totalLength += additional;
+  }
+
+  return selected.join(', ');
+}
+
 const UPLOAD_OPTIMIZER_HASH = '#upload-time-optimizer';
 const UPLOAD_OPTIMIZER_FOCUS_KEY = 'dispatch_focus_upload_optimizer';
 
@@ -1564,7 +1588,10 @@ export default function App() {
       handleAnalyze({ preventDefault: () => { } } as any);
       return;
     }
-    setResult(item.result);
+    setResult({
+      ...item.result,
+      tags: clampYoutubeTagsTo500(item?.result?.tags || ''),
+    });
     setVideoId(item.videoId);
     setUrl(item.url);
     setError(null);
@@ -1613,7 +1640,7 @@ export default function App() {
         primaryTitle: result.titles?.[0] || 'Viral incident breakdown',
         summary: result.summaryEnglish || result.summaryUrdu || '',
         description: result.description || '',
-        tags: result.tags || '',
+        tags: clampYoutubeTagsTo500(result.tags || ''),
         settings: thumbnailSettings,
         avoidHooks: mode === 'another' ? thumbnailUsedHooks : [],
       };
@@ -2972,14 +2999,14 @@ export default function App() {
                             <FeedbackButtons section="tags" />
                             <div className="w-px h-4 bg-zinc-800" />
                             <button
-                              onClick={() => handleSave('tags', result.tags)}
+                              onClick={() => handleSave('tags', clampYoutubeTagsTo500(result.tags))}
                               className={cn(
                                 "p-1.5 rounded-md transition-all",
-                                isSaved('tags', result.tags) ? "text-emerald-500 bg-emerald-500/10" : "text-zinc-500 hover:text-emerald-500 hover:bg-emerald-500/10"
+                                isSaved('tags', clampYoutubeTagsTo500(result.tags)) ? "text-emerald-500 bg-emerald-500/10" : "text-zinc-500 hover:text-emerald-500 hover:bg-emerald-500/10"
                               )}
                               title="Save Tags"
                             >
-                              {isSaved('tags', result.tags) ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
+                              {isSaved('tags', clampYoutubeTagsTo500(result.tags)) ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
                             </button>
                           </div>
                         </div>
@@ -2988,10 +3015,10 @@ export default function App() {
                             "text-xs font-mono font-bold leading-relaxed break-all",
                             theme === 'dark' ? "text-zinc-400" : "text-zinc-800"
                           )}>
-                            {result.tags}
+                            {clampYoutubeTagsTo500(result.tags)}
                           </p>
                           <button
-                            onClick={() => copyToClipboard(result.tags, 'tags')}
+                            onClick={() => copyToClipboard(clampYoutubeTagsTo500(result.tags), 'tags')}
                             className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                             {copiedField === 'tags' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}

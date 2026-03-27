@@ -211,6 +211,8 @@ const BASE_VIRAL_HASHTAGS = [
   '#TrendingNow', '#ViralVideo', '#BreakingNews', '#USPolice', '#StreetJustice'
 ];
 
+const YOUTUBE_TAGS_MAX_CHARS = 500;
+
 function splitTags(input: string): string[] {
   return input
     .split(',')
@@ -263,20 +265,25 @@ function ensureYoutubeTags(rawTags: string, channelName: string): string {
     'officer footage', 'real incidents', 'incident analysis', 'daily shorts', 'viral video'
   ];
 
-  const merged = dedupeTags([...splitTags(rawTags), ...seed]);
+  const merged = dedupeTags(
+    [...splitTags(rawTags), ...seed]
+      .map((tag) => String(tag || '').replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+  );
   const selected: string[] = [];
   let totalLength = 0;
 
   for (const tag of merged) {
+    if (selected.length >= 35) break;
     const additional = selected.length === 0 ? tag.length : tag.length + 2;
-    if (totalLength + additional > 490) break;
+    if (totalLength + additional > YOUTUBE_TAGS_MAX_CHARS) continue;
     selected.push(tag);
     totalLength += additional;
-    if (selected.length >= 35) break;
   }
 
-  if (selected.length < 15) {
-    return merged.slice(0, 15).join(', ');
+  if (selected.length === 0) {
+    const fallback = String(channelName || 'Dispatch Raw').replace(/\s+/g, ' ').trim();
+    return fallback.slice(0, YOUTUBE_TAGS_MAX_CHARS);
   }
 
   return selected.join(', ');
