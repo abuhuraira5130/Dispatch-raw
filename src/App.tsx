@@ -2776,36 +2776,36 @@ export default function App() {
 
                 {result && (
                   <div className="space-y-8">
-                    <div className="relative z-20 grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3">
+                    <div className="relative z-20 isolate grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3">
                       <button
                         onClick={handleBackToHomePage}
                         className={cn(
-                          'group inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg px-2.5 sm:h-10 sm:w-auto sm:min-w-[10.5rem] sm:justify-between sm:px-3.5 text-[10px] sm:text-[11px] font-black uppercase tracking-wide transition-all border',
+                          'group inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg px-2.5 sm:h-10 sm:w-auto sm:min-w-[10.5rem] sm:justify-between sm:px-3.5 text-[10px] sm:text-[11px] font-black uppercase tracking-wide transition-colors border overflow-hidden',
                           theme === 'dark'
-                            ? 'border-emerald-400/40 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 text-emerald-300 hover:border-emerald-300/70 hover:shadow-[0_0_24px_rgba(16,185,129,0.25)]'
-                            : 'border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 text-emerald-800 hover:border-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.2)]'
+                            ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-200 sm:border-emerald-400/40 sm:bg-gradient-to-r sm:from-emerald-500/10 sm:via-teal-500/10 sm:to-cyan-500/10 sm:text-emerald-300 sm:hover:border-emerald-300/70 sm:hover:shadow-[0_0_24px_rgba(16,185,129,0.25)]'
+                            : 'border-emerald-300 bg-emerald-50 text-emerald-800 sm:bg-gradient-to-r sm:from-emerald-50 sm:via-teal-50 sm:to-cyan-50 sm:hover:border-emerald-400 sm:hover:shadow-[0_0_20px_rgba(16,185,129,0.2)]'
                         )}
                         title="Go to home page"
                       >
                         <span className="truncate">Back Home</span>
-                        <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                        <ChevronRight className="hidden sm:block w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                       </button>
 
                       <button
                         onClick={() => focusUploadOptimizerSection(true)}
                         disabled={!optimalUploadTime || !audienceActivityData}
                         className={cn(
-                          'group inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg px-2.5 sm:h-10 sm:w-auto sm:min-w-[10.5rem] sm:justify-between sm:px-3.5 text-[10px] sm:text-[11px] font-black uppercase tracking-wide transition-all border',
+                          'group inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg px-2.5 sm:h-10 sm:w-auto sm:min-w-[10.5rem] sm:justify-between sm:px-3.5 text-[10px] sm:text-[11px] font-black uppercase tracking-wide transition-colors border overflow-hidden',
                           !optimalUploadTime || !audienceActivityData
                             ? 'border-zinc-500/30 bg-zinc-500/10 text-zinc-500 cursor-not-allowed'
                             : theme === 'dark'
-                              ? 'border-cyan-400/40 bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-blue-500/10 text-cyan-300 hover:border-cyan-300/70 hover:shadow-[0_0_24px_rgba(34,211,238,0.25)]'
-                              : 'border-cyan-300 bg-gradient-to-r from-cyan-50 via-sky-50 to-blue-50 text-cyan-800 hover:border-cyan-400 hover:shadow-[0_0_20px_rgba(14,165,233,0.2)]'
+                              ? 'border-cyan-500/60 bg-cyan-500/15 text-cyan-200 sm:border-cyan-400/40 sm:bg-gradient-to-r sm:from-cyan-500/10 sm:via-sky-500/10 sm:to-blue-500/10 sm:text-cyan-300 sm:hover:border-cyan-300/70 sm:hover:shadow-[0_0_24px_rgba(34,211,238,0.25)]'
+                              : 'border-cyan-300 bg-cyan-50 text-cyan-800 sm:bg-gradient-to-r sm:from-cyan-50 sm:via-sky-50 sm:to-blue-50 sm:hover:border-cyan-400 sm:hover:shadow-[0_0_20px_rgba(14,165,233,0.2)]'
                         )}
                         title="Go to Upload Time Optimizer"
                       >
                         <span className="truncate">Upload Studio</span>
-                        <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                        <ChevronRight className="hidden sm:block w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                       </button>
                     </div>
 
