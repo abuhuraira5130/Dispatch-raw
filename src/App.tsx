@@ -65,6 +65,17 @@ import {
 } from './services/geminiService';
 import { analyzeWithGroq, checkGroqQuota, generateShortsClipPlanWithGroq, generateThumbnailSuggestionsWithGroq } from './services/groqService';
 import { fetchBasicYoutubeInfo } from './services/youtubeInfoService';
+import {
+  calculateOptimalUploadTime,
+  get24HourAudienceData,
+  persistOptimizationData,
+  getPersistedOptimizationData,
+  shouldAutoRefresh,
+  type OptimalUploadTime,
+  type AudienceActivityData,
+} from './services/uploadTimeOptimizer';
+import { UploadTimeTimer } from './components/UploadTimeTimer';
+import { AudienceActivityGraph } from './components/AudienceActivityGraph';
 
 
 
@@ -394,6 +405,11 @@ export default function App() {
   const [thumbnailFinalUrl, setThumbnailFinalUrl] = useState<string | null>(null);
   const [thumbnailPromptText, setThumbnailPromptText] = useState<string | null>(null);
   const [thumbnailUsedHooks, setThumbnailUsedHooks] = useState<string[]>([]);
+  
+  // Upload Time Optimization Feature
+  const [optimalUploadTime, setOptimalUploadTime] = useState<OptimalUploadTime | null>(null);
+  const [audienceActivityData, setAudienceActivityData] = useState<AudienceActivityData | null>(null);
+  const [isRefreshingUploadTime, setIsRefreshingUploadTime] = useState(false);
   
   // Post-generation filter adjustment state
   const [thumbnailAdjustedFilters, setThumbnailAdjustedFilters] = useState({
@@ -1383,6 +1399,16 @@ export default function App() {
 
       if (data && (data.summaryEnglish || data.summaryUrdu)) {
         setResult(data);
+        
+        // Calculate optimal upload time
+        const optimalTime = calculateOptimalUploadTime(new Date());
+        const audienceData = get24HourAudienceData();
+        setOptimalUploadTime(optimalTime);
+        setAudienceActivityData(audienceData);
+        
+        // Persist optimization data
+        persistOptimizationData(extractedId, optimalTime, audienceData);
+        
         // Save to History
         const newHistoryItem = {
           id: Date.now().toString(),
@@ -1423,6 +1449,29 @@ export default function App() {
       navigator.clipboard.writeText(text);
       setCopiedField('share');
       setTimeout(() => setCopiedField(null), 2000);
+    }
+  };
+
+  // Refresh Optimal Upload Time
+  const handleRefreshUploadTime = async () => {
+    if (!videoId) return;
+    
+    setIsRefreshingUploadTime(true);
+    try {
+      // Simulate slight delay for UX feedback
+      await new Promise(r => setTimeout(r, 500));
+      
+      const optimalTime = calculateOptimalUploadTime(new Date());
+      const audienceData = get24HourAudienceData();
+      setOptimalUploadTime(optimalTime);
+      setAudienceActivityData(audienceData);
+      
+      // Persist updated data
+      persistOptimizationData(videoId, optimalTime, audienceData);
+    } catch (err) {
+      console.error('Error refreshing upload time:', err);
+    } finally {
+      setIsRefreshingUploadTime(false);
     }
   };
 
@@ -2749,6 +2798,24 @@ export default function App() {
                           </ul>
                         </div>
                       </section>
+                    )}
+
+                    {/* Upload Time Optimizer */}
+                    {optimalUploadTime && audienceActivityData && (
+                      <>
+                        <UploadTimeTimer
+                          optimalTime={optimalUploadTime}
+                          videoId={videoId || ''}
+                          onRefresh={handleRefreshUploadTime}
+                          isRefreshing={isRefreshingUploadTime}
+                          theme={theme}
+                        />
+                        <AudienceActivityGraph
+                          audienceData={audienceActivityData}
+                          theme={theme}
+                          optimalHour={optimalUploadTime.recommendedHour}
+                        />
+                      </>
                     )}
 
                     {/* SEO Section */}
