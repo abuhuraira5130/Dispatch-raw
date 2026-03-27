@@ -1,32 +1,30 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, RefreshCw, TrendingUp, Target, Zap } from 'lucide-react';
-import { OptimalUploadTime, formatCountdown, getMinutesUntilOptimalTime } from '../services/uploadTimeOptimizer';
+import { Clock, RefreshCw, TrendingUp, Zap } from 'lucide-react';
+import { OptimalUploadTime, formatCountdown, formatHourMinute12, getMinutesUntilOptimalTime } from '../services/uploadTimeOptimizer';
 
 interface UploadTimeTimerProps {
   optimalTime: OptimalUploadTime;
-  videoId: string;
   onRefresh: () => void;
+  onSlotExpired?: () => void;
   isRefreshing?: boolean;
   theme?: 'dark' | 'light';
 }
 
 export const UploadTimeTimer: React.FC<UploadTimeTimerProps> = ({
   optimalTime,
-  videoId,
   onRefresh,
+  onSlotExpired,
   isRefreshing = false,
   theme = 'dark',
 }) => {
-  const [minutesRemaining, setMinutesRemaining] = useState(0);
   const [countdown, setCountdown] = useState({ hours: 0, mins: 0, display: '0m' });
-  const [isAutoRefreshActive, setIsAutoRefreshActive] = useState(true);
+  const expiredTriggerRef = useRef(false);
 
   // Update countdown every minute
   useEffect(() => {
     const updateCountdown = () => {
       const minutes = getMinutesUntilOptimalTime(optimalTime);
-      setMinutesRemaining(minutes);
       setCountdown(formatCountdown(minutes));
     };
 
@@ -36,19 +34,21 @@ export const UploadTimeTimer: React.FC<UploadTimeTimerProps> = ({
     return () => clearInterval(interval);
   }, [optimalTime]);
 
-  // Auto-refresh every 30 minutes
   useEffect(() => {
-    if (!isAutoRefreshActive || isRefreshing) return;
+    expiredTriggerRef.current = false;
+  }, [optimalTime.recommendedHour, optimalTime.recommendedMinute, optimalTime.generatedForDate]);
 
-    const autoRefreshInterval = setInterval(() => {
-      onRefresh();
-    }, 30 * 60 * 1000); // 30 minutes
+  useEffect(() => {
+    const minutes = getMinutesUntilOptimalTime(optimalTime);
+    if (minutes <= 0 && !expiredTriggerRef.current) {
+      expiredTriggerRef.current = true;
+      onSlotExpired?.();
+    }
+  }, [countdown.display, optimalTime, onSlotExpired]);
 
-    return () => clearInterval(autoRefreshInterval);
-  }, [isAutoRefreshActive, onRefresh, isRefreshing]);
-
-  const recommendedTimeStr = `${optimalTime.recommendedHour.toString().padStart(2, '0')}:${optimalTime.recommendedMinute.toString().padStart(2, '0')} EST`;
-  const peakTimeStr = `${optimalTime.peakHour.toString().padStart(2, '0')}:00 EST`;
+  const recommendedTimeStr = `${formatHourMinute12(optimalTime.recommendedHour, optimalTime.recommendedMinute)} PKT`;
+  const peakTimeStr = `${formatHourMinute12(optimalTime.peakHour, 0)} PKT`;
+  const uploadDayLabel = `Today (${optimalTime.recommendedWeekday})`;
 
   const isDarkTheme = theme === 'dark';
   const bgClass = isDarkTheme ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white/50 border-zinc-200';
@@ -72,7 +72,7 @@ export const UploadTimeTimer: React.FC<UploadTimeTimerProps> = ({
                 OPTIMAL UPLOAD TIME
               </h3>
               <p className={`text-[11px] sm:text-xs ${isDarkTheme ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                Best time for Maximum Retention & Viral Potential
+                Pakistan time, optimized for USA audience activity
               </p>
             </div>
           </div>
@@ -118,7 +118,9 @@ export const UploadTimeTimer: React.FC<UploadTimeTimerProps> = ({
               </p>
             </div>
             <p className={`text-[10px] sm:text-xs mt-2 ${isDarkTheme ? 'text-zinc-400' : 'text-zinc-500'}`}>
-              {countdown.hours > 0
+              {countdown.display === '0m'
+                ? 'Upload now'
+                : countdown.hours > 0
                 ? `${countdown.hours}h ${countdown.mins}m remaining`
                 : `${countdown.mins} minutes left`}
             </p>
@@ -171,7 +173,7 @@ export const UploadTimeTimer: React.FC<UploadTimeTimerProps> = ({
       </div>
 
       {/* Upload Details Grid */}
-      <div className={`grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 p-5 sm:p-6 border-b ${
+      <div className={`grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4 p-5 sm:p-6 border-b ${
         isDarkTheme ? 'border-zinc-800' : 'border-zinc-200'
       }`}>
         {/* Recommended Time */}
@@ -188,6 +190,23 @@ export const UploadTimeTimer: React.FC<UploadTimeTimerProps> = ({
           </p>
           <p className={`text-sm sm:text-base font-black ${textClass}`}>
             {recommendedTimeStr}
+          </p>
+        </motion.div>
+
+        {/* Upload Day */}
+        <motion.div
+          whileHover={{ y: -2 }}
+          className={`rounded-lg p-3 sm:p-4 border ${
+            isDarkTheme ? 'border-zinc-800 bg-zinc-900/50' : 'border-zinc-200 bg-zinc-50'
+          }`}
+        >
+          <p className={`text-[10px] sm:text-xs uppercase font-bold tracking-wider mb-1.5 ${
+            isDarkTheme ? 'text-zinc-400' : 'text-zinc-600'
+          }`}>
+            Upload Day
+          </p>
+          <p className={`text-sm sm:text-base font-black ${textClass}`}>
+            {uploadDayLabel}
           </p>
         </motion.div>
 
@@ -254,27 +273,16 @@ export const UploadTimeTimer: React.FC<UploadTimeTimerProps> = ({
         isDarkTheme ? 'bg-zinc-900/30' : 'bg-gray-50'
       }`}>
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${isAutoRefreshActive ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-500'}`} />
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           <p className={`text-xs font-medium ${
             isDarkTheme ? 'text-zinc-400' : 'text-zinc-600'
           }`}>
-            {isAutoRefreshActive ? 'Auto-refresh active (every 30 min)' : 'Auto-refresh disabled'}
+            Auto-refresh active (every 10 hours)
           </p>
         </div>
-        <button
-          onClick={() => setIsAutoRefreshActive(!isAutoRefreshActive)}
-          className={`text-xs font-bold px-2 py-1 rounded transition-all ${
-            isAutoRefreshActive
-              ? isDarkTheme
-                ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
-                : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-              : isDarkTheme
-              ? 'bg-zinc-700/50 text-zinc-300 hover:bg-zinc-700'
-              : 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300'
-          }`}
-        >
-          {isAutoRefreshActive ? 'ON' : 'OFF'}
-        </button>
+        <span className={`text-xs font-bold px-2 py-1 rounded ${isDarkTheme ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-100 text-emerald-700'}`}>
+          ON
+        </span>
       </div>
     </motion.div>
   );

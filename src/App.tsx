@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import Groq from 'groq-sdk';
 import {
@@ -1400,9 +1400,9 @@ export default function App() {
       if (data && (data.summaryEnglish || data.summaryUrdu)) {
         setResult(data);
         
-        // Calculate optimal upload time
-        const optimalTime = calculateOptimalUploadTime(new Date());
-        const audienceData = get24HourAudienceData();
+        // Calculate deterministic upload time lock for this video/day
+        const optimalTime = calculateOptimalUploadTime(extractedId);
+        const audienceData = get24HourAudienceData(extractedId);
         setOptimalUploadTime(optimalTime);
         setAudienceActivityData(audienceData);
         
@@ -1453,7 +1453,7 @@ export default function App() {
   };
 
   // Refresh Optimal Upload Time
-  const handleRefreshUploadTime = async () => {
+  const handleRefreshUploadTime = useCallback(async (refreshStatsOnly: boolean = true, advanceIfPassed: boolean = false) => {
     if (!videoId) return;
     
     setIsRefreshingUploadTime(true);
@@ -1461,8 +1461,8 @@ export default function App() {
       // Simulate slight delay for UX feedback
       await new Promise(r => setTimeout(r, 500));
       
-      const optimalTime = calculateOptimalUploadTime(new Date());
-      const audienceData = get24HourAudienceData();
+      const optimalTime = calculateOptimalUploadTime(videoId, { refreshStatsOnly, advanceIfPassed });
+      const audienceData = get24HourAudienceData(videoId);
       setOptimalUploadTime(optimalTime);
       setAudienceActivityData(audienceData);
       
@@ -1473,7 +1473,29 @@ export default function App() {
     } finally {
       setIsRefreshingUploadTime(false);
     }
-  };
+  }, [videoId]);
+
+  useEffect(() => {
+    if (!videoId) return;
+
+    const persisted = getPersistedOptimizationData(videoId);
+    if (!persisted?.optimalTime || !persisted?.audienceData) return;
+
+    setOptimalUploadTime(persisted.optimalTime);
+    setAudienceActivityData(persisted.audienceData);
+  }, [videoId]);
+
+  useEffect(() => {
+    if (!videoId || !optimalUploadTime) return;
+
+    const intervalId = window.setInterval(() => {
+      if (shouldAutoRefresh(optimalUploadTime)) {
+        void handleRefreshUploadTime(true);
+      }
+    }, 60000);
+
+    return () => window.clearInterval(intervalId);
+  }, [videoId, optimalUploadTime, handleRefreshUploadTime]);
 
   const getLoadingMessage = (step: ProgressStep | null) => {
     switch (step) {
@@ -2800,24 +2822,6 @@ export default function App() {
                       </section>
                     )}
 
-                    {/* Upload Time Optimizer */}
-                    {optimalUploadTime && audienceActivityData && (
-                      <>
-                        <UploadTimeTimer
-                          optimalTime={optimalUploadTime}
-                          videoId={videoId || ''}
-                          onRefresh={handleRefreshUploadTime}
-                          isRefreshing={isRefreshingUploadTime}
-                          theme={theme}
-                        />
-                        <AudienceActivityGraph
-                          audienceData={audienceActivityData}
-                          theme={theme}
-                          optimalHour={optimalUploadTime.recommendedHour}
-                        />
-                      </>
-                    )}
-
                     {/* SEO Section */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       {/* Titles */}
@@ -3317,6 +3321,24 @@ export default function App() {
                         )}
                       </div>
                     </section>
+
+                    {/* Upload Time Optimizer */}
+                    {optimalUploadTime && audienceActivityData && (
+                      <div className="space-y-5">
+                        <UploadTimeTimer
+                          optimalTime={optimalUploadTime}
+                          onRefresh={() => handleRefreshUploadTime(true)}
+                          onSlotExpired={() => handleRefreshUploadTime(true, true)}
+                          isRefreshing={isRefreshingUploadTime}
+                          theme={theme}
+                        />
+                        <AudienceActivityGraph
+                          audienceData={audienceActivityData}
+                          theme={theme}
+                          optimalHour={optimalUploadTime.recommendedHour}
+                        />
+                      </div>
+                    )}
 
                   </div>
                 )}

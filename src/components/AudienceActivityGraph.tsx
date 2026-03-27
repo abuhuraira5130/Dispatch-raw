@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart3, ChevronDown, Activity, Users } from 'lucide-react';
-import { AudienceActivityData } from '../services/uploadTimeOptimizer';
+import { BarChart3, ChevronDown } from 'lucide-react';
+import { AudienceActivityData, formatHourCompact12, formatHourMinute12 } from '../services/uploadTimeOptimizer';
 
 interface AudienceActivityGraphProps {
   audienceData: AudienceActivityData;
@@ -35,13 +35,6 @@ export const AudienceActivityGraph: React.FC<AudienceActivityGraphProps> = ({
     if (score >= maxEngagement * 0.75) return 'from-emerald-500 to-green-500';
     if (score >= maxEngagement * 0.5) return 'from-blue-500 to-cyan-500';
     return 'from-zinc-500 to-zinc-600';
-  };
-
-  const getBarLabel = (score: number) => {
-    if (score >= 75) return 'Very High';
-    if (score >= 50) return 'High';
-    if (score >= 30) return 'Medium';
-    return 'Low';
   };
 
   return (
@@ -98,9 +91,10 @@ export const AudienceActivityGraph: React.FC<AudienceActivityGraphProps> = ({
                 <p className={`text-xs sm:text-sm font-bold uppercase tracking-wider mb-4 ${
                   isDarkTheme ? 'text-zinc-400' : 'text-zinc-600'
                 }`}>
-                  All 24 Hours (EST Timezone)
+                  All 24 Hours (Pakistan Time - PKT)
                 </p>
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-1.5">
+                <div className="overflow-x-auto pb-2">
+                  <div className="flex min-w-max gap-2 pr-2">
                   {audienceData.slots.map((slot) => {
                     const isOptimal = slot.hour === optimalHour;
                     const barHeight = ((slot.engagementScore - minEngagement) / (maxEngagement - minEngagement)) * 100;
@@ -109,10 +103,10 @@ export const AudienceActivityGraph: React.FC<AudienceActivityGraphProps> = ({
                       <motion.div
                         key={slot.hour}
                         whileHover={{ y: -4 }}
-                        className="flex flex-col items-center gap-1"
+                        className="flex w-8 sm:w-9 flex-col items-center gap-1"
                       >
                         {/* Bar */}
-                        <div className="w-full flex items-end justify-center h-16">
+                        <div className="h-20 w-full flex items-end justify-center">
                           <motion.div
                             initial={{ height: 0 }}
                             animate={{ height: `${Math.max(barHeight, 8)}%` }}
@@ -130,11 +124,12 @@ export const AudienceActivityGraph: React.FC<AudienceActivityGraphProps> = ({
                             ? 'text-zinc-400'
                             : 'text-zinc-600'
                         }`}>
-                          {slot.hour.toString().padStart(2, '0')}
+                          {formatHourCompact12(slot.hour)}
                         </p>
                       </motion.div>
                     );
                   })}
+                  </div>
                 </div>
               </div>
 
@@ -143,10 +138,10 @@ export const AudienceActivityGraph: React.FC<AudienceActivityGraphProps> = ({
                 {Object.entries(timeGroups).map(([period, slots], idx) => {
                   const avgScore = Math.round(slots.reduce((sum, s) => sum + s.engagementScore, 0) / slots.length);
                   const periodLabels: Record<string, { label: string; icon: string }> = {
-                    morning: { label: '🌅 Morning', icon: '06-12' },
-                    afternoon: { label: '☀️ Afternoon', icon: '12-17' },
-                    evening: { label: '🌆 Evening', icon: '17-22' },
-                    night: { label: '🌙 Night', icon: '22-06' },
+                    morning: { label: 'Morning (6 AM - 12 PM)', icon: '06-12' },
+                    afternoon: { label: 'Afternoon (12 PM - 5 PM)', icon: '12-17' },
+                    evening: { label: 'Evening (5 PM - 10 PM)', icon: '17-22' },
+                    night: { label: 'Night (10 PM - 6 AM)', icon: '22-06' },
                   };
 
                   return (
@@ -191,16 +186,16 @@ export const AudienceActivityGraph: React.FC<AudienceActivityGraphProps> = ({
                 <div className="space-y-2">
                   {audienceData.peakHours.length > 0 && (
                     <p className={`text-sm ${isDarkTheme ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                      <span className="font-bold text-emerald-500">Peak Hours:</span> {audienceData.peakHours.map(h => `${h.toString().padStart(2, '0')}:00`).join(', ')} EST
+                      <span className="font-bold text-emerald-500">Peak Hours:</span> {audienceData.peakHours.map((h) => `${formatHourMinute12(h, 0)} PKT`).join(', ')}
                     </p>
                   )}
                   {audienceData.lowHours.length > 0 && (
                     <p className={`text-sm ${isDarkTheme ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                      <span className="font-bold text-orange-500">Slow Hours:</span> {audienceData.lowHours.slice(0, 3).map(h => `${h.toString().padStart(2, '0')}:00`).join(', ')} EST {audienceData.lowHours.length > 3 && `+${audienceData.lowHours.length - 3} more`}
+                      <span className="font-bold text-orange-500">Slow Hours:</span> {audienceData.lowHours.slice(0, 3).map((h) => `${formatHourMinute12(h, 0)} PKT`).join(', ')} {audienceData.lowHours.length > 3 && `+${audienceData.lowHours.length - 3} more`}
                     </p>
                   )}
                   <p className={`text-sm ${isDarkTheme ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                    <span className="font-bold text-blue-500">Recommendation:</span> Avoid uploading during night hours; aim for evening peak (5pm-10pm EST)
+                    <span className="font-bold text-blue-500">Recommendation:</span> Time shown is PKT. Upload on the recommended PKT slot for best USA audience reach.
                   </p>
                 </div>
               </div>
