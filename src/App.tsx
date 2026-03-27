@@ -83,6 +83,9 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const UPLOAD_OPTIMIZER_HASH = '#upload-time-optimizer';
+const UPLOAD_OPTIMIZER_FOCUS_KEY = 'dispatch_focus_upload_optimizer';
+
 interface SeoQualityScore {
   overall: number;
   titleStrength: number;
@@ -1452,6 +1455,37 @@ export default function App() {
     }
   };
 
+  const focusUploadOptimizerSection = useCallback((persistFocus: boolean = false) => {
+    if (persistFocus) {
+      sessionStorage.setItem(UPLOAD_OPTIMIZER_FOCUS_KEY, '1');
+    }
+
+    if (window.location.hash !== UPLOAD_OPTIMIZER_HASH) {
+      window.history.replaceState(null, '', UPLOAD_OPTIMIZER_HASH);
+    }
+
+    const el = document.getElementById('upload-time-optimizer-section');
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
+  const handleBackToHomePage = useCallback(() => {
+    setResult(null);
+    setError(null);
+    setUrl('');
+    setVideoId(null);
+    setOptimalUploadTime(null);
+    setAudienceActivityData(null);
+    sessionStorage.removeItem(UPLOAD_OPTIMIZER_FOCUS_KEY);
+
+    if (window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showToast('Returned to home page.', 'success', 2400);
+  }, [showToast]);
+
   // Refresh Optimal Upload Time
   const handleRefreshUploadTime = useCallback(async (refreshStatsOnly: boolean = true, advanceIfPassed: boolean = false) => {
     if (!videoId) return;
@@ -1496,6 +1530,22 @@ export default function App() {
 
     return () => window.clearInterval(intervalId);
   }, [videoId, optimalUploadTime, handleRefreshUploadTime]);
+
+  useEffect(() => {
+    if (!result || !optimalUploadTime || !audienceActivityData) return;
+
+    const shouldFocus =
+      window.location.hash === UPLOAD_OPTIMIZER_HASH ||
+      sessionStorage.getItem(UPLOAD_OPTIMIZER_FOCUS_KEY) === '1';
+
+    if (!shouldFocus) return;
+
+    const timer = window.setTimeout(() => {
+      focusUploadOptimizerSection(false);
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [result, optimalUploadTime, audienceActivityData, focusUploadOptimizerSection]);
 
   const getLoadingMessage = (step: ProgressStep | null) => {
     switch (step) {
@@ -2726,6 +2776,38 @@ export default function App() {
 
                 {result && (
                   <div className="space-y-8">
+                    <div className="flex flex-wrap items-start gap-3">
+                      <button
+                        onClick={handleBackToHomePage}
+                        className={cn(
+                          'group inline-flex h-11 w-[15.5rem] items-center justify-between rounded-xl px-4 text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all border',
+                          theme === 'dark'
+                            ? 'border-emerald-400/40 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 text-emerald-300 hover:border-emerald-300/70 hover:shadow-[0_0_24px_rgba(16,185,129,0.25)]'
+                            : 'border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 text-emerald-800 hover:border-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.2)]'
+                        )}
+                        title="Go to home page"
+                      >
+                        <span>Back To Home Page</span>
+                        <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                      </button>
+
+                    {optimalUploadTime && audienceActivityData && (
+                        <button
+                          onClick={() => focusUploadOptimizerSection(true)}
+                          className={cn(
+                            'group inline-flex h-11 w-[15.5rem] items-center justify-between rounded-xl px-4 text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all border',
+                            theme === 'dark'
+                              ? 'border-cyan-400/40 bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-blue-500/10 text-cyan-300 hover:border-cyan-300/70 hover:shadow-[0_0_24px_rgba(34,211,238,0.25)]'
+                              : 'border-cyan-300 bg-gradient-to-r from-cyan-50 via-sky-50 to-blue-50 text-cyan-800 hover:border-cyan-400 hover:shadow-[0_0_20px_rgba(14,165,233,0.2)]'
+                          )}
+                          title="Go to Upload Time Optimizer"
+                        >
+                          <span>Open Upload Time Studio</span>
+                          <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                        </button>
+                    )}
+                    </div>
+
                     {/* Video Preview */}
                     {videoId && (
                       <section className="glass-panel rounded-2xl overflow-hidden shadow-2xl shadow-red-500/10 border-red-500/20">
@@ -3324,7 +3406,7 @@ export default function App() {
 
                     {/* Upload Time Optimizer */}
                     {optimalUploadTime && audienceActivityData && (
-                      <div className="space-y-5">
+                      <div id="upload-time-optimizer-section" className="space-y-5 scroll-mt-24">
                         <UploadTimeTimer
                           optimalTime={optimalUploadTime}
                           onRefresh={() => handleRefreshUploadTime(true)}
