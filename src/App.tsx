@@ -3051,7 +3051,7 @@ export default function App() {
                       <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-5 mb-5 bg-zinc-50/60 dark:bg-zinc-950/60">
                         <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
                           <div className="w-full sm:w-64">
-                            <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5">Total Short Duration (seconds)</label>
+                            <label className={cn("block text-[10px] font-bold uppercase tracking-widest mb-1.5", theme === 'dark' ? "text-zinc-500" : "text-zinc-700")}>Total Short Duration (seconds)</label>
                             <input
                               type="number"
                               min={15}
@@ -3078,7 +3078,7 @@ export default function App() {
                             {generatingClipPlan ? 'Generating...' : 'Generate Clip Plan'}
                           </button>
                         </div>
-                        <p className="text-[10px] mt-2 font-mono uppercase tracking-wider text-zinc-500">
+                        <p className={cn("text-[10px] mt-2 font-mono uppercase tracking-wider", theme === 'dark' ? "text-zinc-500" : "text-zinc-700")}>
                           Enter your target short duration first, then generate exact hook, middle, and end clip ranges.
                         </p>
                         {result?.shortsClipPlan?.length > 0 && (
@@ -3125,25 +3125,25 @@ export default function App() {
                                   </div>
                                   
                                   {/* Timestamp - LARGE AND PROMINENT */}
-                                  <div className="bg-emerald-500/5 border border-emerald-500/30 rounded-lg p-3 space-y-1.5">
-                                    <div className="text-[10px] uppercase tracking-wider font-bold text-zinc-500">Extract from YouTube:</div>
-                                    <div className="text-sm font-mono font-black text-emerald-600 dark:text-emerald-400">
-                                      FROM <span className="text-base text-emerald-500">{startTime}</span>
+                                  <div className={cn("border rounded-lg p-3 space-y-1.5", theme === 'dark' ? "bg-emerald-500/5 border-emerald-500/30" : "bg-emerald-50 border-emerald-300/60")}>
+                                    <div className={cn("text-[10px] uppercase tracking-wider font-bold", theme === 'dark' ? "text-zinc-500" : "text-zinc-600")}>Extract from YouTube:</div>
+                                    <div className={cn("text-sm font-mono font-black", theme === 'dark' ? "text-emerald-400" : "text-emerald-700")}>
+                                      FROM <span className={cn("text-base", theme === 'dark' ? "text-emerald-400" : "text-emerald-600")}>{startTime}</span>
                                     </div>
-                                    <div className="text-sm font-mono font-black text-emerald-600 dark:text-emerald-400">
-                                      TO <span className="text-base text-emerald-500">{endTime}</span>
+                                    <div className={cn("text-sm font-mono font-black", theme === 'dark' ? "text-emerald-400" : "text-emerald-700")}>
+                                      TO <span className={cn("text-base", theme === 'dark' ? "text-emerald-400" : "text-emerald-600")}>{endTime}</span>
                                     </div>
                                   </div>
                                   
                                   {/* CapCut Instruction */}
-                                  <p className="text-xs text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed border-t border-emerald-500/20 pt-3">
+                                  <p className={cn("text-xs font-medium leading-relaxed border-t border-emerald-500/20 pt-3", theme === 'dark' ? "text-zinc-400" : "text-zinc-700")}>
                                     {clip.editInstruction}
                                   </p>
                                 </motion.div>
                               );
                             })}
                           </div>
-                          <p className="text-[11px] mt-3 font-mono uppercase tracking-wider text-zinc-500 bg-zinc-100/50 dark:bg-zinc-900/50 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                          <p className={cn("text-[11px] mt-3 font-mono uppercase tracking-wider px-3 py-2 rounded-lg border", theme === 'dark' ? "text-zinc-400 bg-zinc-900/50 border-zinc-800" : "text-emerald-700 bg-emerald-50 border-emerald-300/60")}>
                             ⏱️ EXACT YouTube timestamps - Go to video at each time and extract these clip ranges using CapCut
                           </p>
                         </>
@@ -3643,7 +3643,7 @@ export default function App() {
                 <span className="askbot-fab-leg askbot-fab-leg-left"></span>
                 <span className="askbot-fab-leg askbot-fab-leg-right"></span>
               </span>
-              <span>Ask Me</span>
+              <span className={cn(theme === 'dark' ? 'text-cyan-50' : 'text-sky-950')}>Ask Me</span>
             </button>
 
             <button

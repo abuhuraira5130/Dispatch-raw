@@ -234,7 +234,7 @@ body {
 
 .global-loader-subtitle {
   margin-top: 0.25rem;
-  color: #a1a1aa;
+  color: #ffffff;
   font-size: 0.74rem;
   font-family: var(--font-mono);
   letter-spacing: 0.02em;
@@ -389,7 +389,7 @@ body {
 .faq-fold-dark {
   border-color: rgba(56, 189, 248, 0.5);
   background: linear-gradient(135deg, rgba(8, 23, 44, 0.95), rgba(11, 49, 84, 0.88));
-  color: #bae6fd;
+  color: #ffffff;
 }
 
 .faq-widget-folded .faq-fold-toggle {
@@ -592,8 +592,13 @@ body {
 
 .faq-fab-light {
   border-color: rgba(14, 116, 144, 0.4);
-  color: #0c4a6e;
+  color: #082f49;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
   box-shadow: 0 10px 24px rgba(2, 132, 199, 0.22), 0 0 16px rgba(34, 211, 238, 0.2);
+}
+
+.faq-fab-light > span:last-child {
+  color: #082f49;
 }
 
 .faq-fab-light::before {
