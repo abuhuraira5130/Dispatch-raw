@@ -65,17 +65,6 @@ import {
 } from './services/geminiService';
 import { analyzeWithGroq, checkGroqQuota, generateShortsClipPlanWithGroq, generateThumbnailSuggestionsWithGroq } from './services/groqService';
 import { fetchBasicYoutubeInfo } from './services/youtubeInfoService';
-import {
-  calculateOptimalUploadTime,
-  get24HourAudienceData,
-  persistOptimizationData,
-  getPersistedOptimizationData,
-  shouldAutoRefresh,
-  type OptimalUploadTime,
-  type AudienceActivityData,
-} from './services/uploadTimeOptimizer';
-import { UploadTimeTimer } from './components/UploadTimeTimer';
-import { AudienceActivityGraph } from './components/AudienceActivityGraph';
 
 
 
@@ -106,9 +95,6 @@ function clampYoutubeTagsTo500(rawTags: string): string {
 
   return selected.join(', ');
 }
-
-const UPLOAD_OPTIMIZER_HASH = '#upload-time-optimizer';
-const UPLOAD_OPTIMIZER_FOCUS_KEY = 'dispatch_focus_upload_optimizer';
 
 interface SeoQualityScore {
   overall: number;
@@ -432,12 +418,7 @@ export default function App() {
   const [thumbnailFinalUrl, setThumbnailFinalUrl] = useState<string | null>(null);
   const [thumbnailPromptText, setThumbnailPromptText] = useState<string | null>(null);
   const [thumbnailUsedHooks, setThumbnailUsedHooks] = useState<string[]>([]);
-  
-  // Upload Time Optimization Feature
-  const [optimalUploadTime, setOptimalUploadTime] = useState<OptimalUploadTime | null>(null);
-  const [audienceActivityData, setAudienceActivityData] = useState<AudienceActivityData | null>(null);
-  const [isRefreshingUploadTime, setIsRefreshingUploadTime] = useState(false);
-  
+
   // Post-generation filter adjustment state
   const [thumbnailAdjustedFilters, setThumbnailAdjustedFilters] = useState({
     brightness: 0,
@@ -1427,15 +1408,6 @@ export default function App() {
       if (data && (data.summaryEnglish || data.summaryUrdu)) {
         setResult(data);
         
-        // Calculate deterministic upload time lock for this video/day
-        const optimalTime = calculateOptimalUploadTime(extractedId);
-        const audienceData = get24HourAudienceData(extractedId);
-        setOptimalUploadTime(optimalTime);
-        setAudienceActivityData(audienceData);
-        
-        // Persist optimization data
-        persistOptimizationData(extractedId, optimalTime, audienceData);
-        
         // Save to History
         const newHistoryItem = {
           id: Date.now().toString(),
@@ -1479,97 +1451,15 @@ export default function App() {
     }
   };
 
-  const focusUploadOptimizerSection = useCallback((persistFocus: boolean = false) => {
-    if (persistFocus) {
-      sessionStorage.setItem(UPLOAD_OPTIMIZER_FOCUS_KEY, '1');
-    }
-
-    if (window.location.hash !== UPLOAD_OPTIMIZER_HASH) {
-      window.history.replaceState(null, '', UPLOAD_OPTIMIZER_HASH);
-    }
-
-    const el = document.getElementById('upload-time-optimizer-section');
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
-
   const handleBackToHomePage = useCallback(() => {
     setResult(null);
     setError(null);
     setUrl('');
     setVideoId(null);
-    setOptimalUploadTime(null);
-    setAudienceActivityData(null);
-    sessionStorage.removeItem(UPLOAD_OPTIMIZER_FOCUS_KEY);
-
-    if (window.location.hash) {
-      window.history.replaceState(null, '', window.location.pathname + window.location.search);
-    }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
     showToast('Returned to home page.', 'success', 2400);
   }, [showToast]);
-
-  // Refresh Optimal Upload Time
-  const handleRefreshUploadTime = useCallback(async (refreshStatsOnly: boolean = true, advanceIfPassed: boolean = false) => {
-    if (!videoId) return;
-    
-    setIsRefreshingUploadTime(true);
-    try {
-      // Simulate slight delay for UX feedback
-      await new Promise(r => setTimeout(r, 500));
-      
-      const optimalTime = calculateOptimalUploadTime(videoId, { refreshStatsOnly, advanceIfPassed });
-      const audienceData = get24HourAudienceData(videoId);
-      setOptimalUploadTime(optimalTime);
-      setAudienceActivityData(audienceData);
-      
-      // Persist updated data
-      persistOptimizationData(videoId, optimalTime, audienceData);
-    } catch (err) {
-      console.error('Error refreshing upload time:', err);
-    } finally {
-      setIsRefreshingUploadTime(false);
-    }
-  }, [videoId]);
-
-  useEffect(() => {
-    if (!videoId) return;
-
-    const persisted = getPersistedOptimizationData(videoId);
-    if (!persisted?.optimalTime || !persisted?.audienceData) return;
-
-    setOptimalUploadTime(persisted.optimalTime);
-    setAudienceActivityData(persisted.audienceData);
-  }, [videoId]);
-
-  useEffect(() => {
-    if (!videoId || !optimalUploadTime) return;
-
-    const intervalId = window.setInterval(() => {
-      if (shouldAutoRefresh(optimalUploadTime)) {
-        void handleRefreshUploadTime(true);
-      }
-    }, 60000);
-
-    return () => window.clearInterval(intervalId);
-  }, [videoId, optimalUploadTime, handleRefreshUploadTime]);
-
-  useEffect(() => {
-    if (!result || !optimalUploadTime || !audienceActivityData) return;
-
-    const shouldFocus =
-      window.location.hash === UPLOAD_OPTIMIZER_HASH ||
-      sessionStorage.getItem(UPLOAD_OPTIMIZER_FOCUS_KEY) === '1';
-
-    if (!shouldFocus) return;
-
-    const timer = window.setTimeout(() => {
-      focusUploadOptimizerSection(false);
-    }, 180);
-
-    return () => window.clearTimeout(timer);
-  }, [result, optimalUploadTime, audienceActivityData, focusUploadOptimizerSection]);
 
   const getLoadingMessage = (step: ProgressStep | null) => {
     switch (step) {
@@ -2803,7 +2693,7 @@ export default function App() {
 
                 {result && (
                   <div className="space-y-8">
-                    <div className="relative z-20 isolate grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3">
+                    <div className="relative z-20 isolate flex w-full sm:w-auto sm:flex-wrap sm:items-center sm:gap-3">
                       <button
                         onClick={handleBackToHomePage}
                         className={cn(
@@ -2818,22 +2708,6 @@ export default function App() {
                         <ChevronRight className="hidden sm:block w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                       </button>
 
-                      <button
-                        onClick={() => focusUploadOptimizerSection(true)}
-                        disabled={!optimalUploadTime || !audienceActivityData}
-                        className={cn(
-                          'group inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg px-2.5 sm:h-10 sm:w-auto sm:min-w-[10.5rem] sm:justify-between sm:px-3.5 text-[10px] sm:text-[11px] font-black uppercase tracking-wide transition-colors border overflow-hidden',
-                          !optimalUploadTime || !audienceActivityData
-                            ? 'border-zinc-500/30 bg-zinc-500/10 text-zinc-500 cursor-not-allowed'
-                            : theme === 'dark'
-                              ? 'border-cyan-500/60 bg-cyan-500/15 text-cyan-200 sm:border-cyan-400/40 sm:bg-gradient-to-r sm:from-cyan-500/10 sm:via-sky-500/10 sm:to-blue-500/10 sm:text-cyan-300 sm:hover:border-cyan-300/70 sm:hover:shadow-[0_0_24px_rgba(34,211,238,0.25)]'
-                              : 'border-cyan-300 bg-cyan-50 text-cyan-800 sm:bg-gradient-to-r sm:from-cyan-50 sm:via-sky-50 sm:to-blue-50 sm:hover:border-cyan-400 sm:hover:shadow-[0_0_20px_rgba(14,165,233,0.2)]'
-                        )}
-                        title="Go to Upload Time Optimizer"
-                      >
-                        <span className="truncate">Upload Studio</span>
-                        <ChevronRight className="hidden sm:block w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-                      </button>
                     </div>
 
                     {/* Video Preview */}
@@ -3431,24 +3305,6 @@ export default function App() {
                         )}
                       </div>
                     </section>
-
-                    {/* Upload Time Optimizer */}
-                    {optimalUploadTime && audienceActivityData && (
-                      <div id="upload-time-optimizer-section" className="space-y-5 scroll-mt-24">
-                        <UploadTimeTimer
-                          optimalTime={optimalUploadTime}
-                          onRefresh={() => handleRefreshUploadTime(true)}
-                          onSlotExpired={() => handleRefreshUploadTime(true, true)}
-                          isRefreshing={isRefreshingUploadTime}
-                          theme={theme}
-                        />
-                        <AudienceActivityGraph
-                          audienceData={audienceActivityData}
-                          theme={theme}
-                          optimalHour={optimalUploadTime.recommendedHour}
-                        />
-                      </div>
-                    )}
 
                   </div>
                 )}
