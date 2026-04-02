@@ -1610,8 +1610,10 @@ body {
   }
 
   .faq-panel-fullscreen .askbot-chat-list {
-    min-height: 0;
-    max-height: min(34vh, 280px);
+    min-height: 140px;
+    max-height: min(38vh, 300px);
+    flex: 0 1 auto;
+    margin: 0 12px;
   }
 }
 
@@ -1619,6 +1621,8 @@ body {
   .faq-panel {
     width: calc(100vw - 16px);
     max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
   }
 
   .faq-panel-fullscreen {
@@ -1630,31 +1634,47 @@ body {
     height: 100dvh !important;
     max-height: 100dvh !important;
     border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   .faq-panel-fullscreen .faq-list {
     grid-template-columns: 1fr;
-    max-height: calc(100dvh - 340px);
+    max-height: none;
+    min-height: 120px;
     height: auto;
-    padding: 0 12px;
+    padding: 0 12px 12px;
+    flex: 0 1 auto;
+    overflow-y: auto;
   }
 
   .faq-panel-fullscreen .faq-panel-head {
     padding: 13px 12px;
+    flex-shrink: 0;
   }
 
   .faq-panel-fullscreen .askbot-status-row {
     padding: 10px 12px 8px;
     grid-template-columns: 1fr;
     gap: 7px;
+    flex-shrink: 0;
   }
 
   .faq-panel-fullscreen .faq-search-row {
     padding: 8px 12px;
+    flex-shrink: 0;
   }
 
   .faq-panel-fullscreen .faq-quick-title {
     padding: 2px 12px 8px;
+    flex-shrink: 0;
+  }
+
+  .faq-panel-fullscreen .askbot-chat-list {
+    margin: 0 12px;
+    min-height: 0;
+    flex: 1 1 auto;
   }
 
   .faq-panel-fullscreen .faq-item {
@@ -1687,8 +1707,11 @@ body {
 
   .askbot-chat-list {
     margin: 0 13px;
-    min-height: 100px;
-    max-height: 200px;
+    min-height: 120px;
+    max-height: none;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    min-height: 0;
   }
 
   .askbot-bubble {
@@ -1722,12 +1745,13 @@ body {
     grid-template-columns: 1fr;
     padding: 0 13px 12px;
     gap: 7px;
-    max-height: 350px;
+    max-height: none;
     min-height: 0;
+    flex: 1 1 auto;
   }
 
   .faq-item {
-    min-height: 72px;
+    min-height: 68px;
     padding: 9px;
     gap: 5px;
   }
