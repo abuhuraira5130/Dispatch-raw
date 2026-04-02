@@ -3458,6 +3458,7 @@ export default function App() {
             'faq-widget-wrap',
             botVisible ? 'faq-widget-visible' : 'faq-widget-hidden',
             faqOpen && 'faq-widget-open',
+            faqFullScreen && 'faq-widget-fullscreen-active',
             botFolded && 'faq-widget-folded',
             isLowPerformanceDevice && 'faq-widget-low-perf'
           )}
@@ -3472,7 +3473,10 @@ export default function App() {
                 transition={{ duration: 0.18, ease: 'easeOut' }}
                 className="faq-widget-backdrop"
                 aria-label="Close Assistance Hub overlay"
-                onClick={() => setFaqOpen(false)}
+                onClick={() => {
+                  setFaqOpen(false);
+                  setFaqFullScreen(false);
+                }}
               />
             )}
           </AnimatePresence>
@@ -3510,7 +3514,10 @@ export default function App() {
                       {faqFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                     </button>
                     <button
-                      onClick={() => setFaqOpen(false)}
+                      onClick={() => {
+                        setFaqOpen(false);
+                        setFaqFullScreen(false);
+                      }}
                       className="askbot-head-icon-btn faq-panel-close"
                       aria-label="Close Assistance Hub"
                       title="Close Assistance Hub"
