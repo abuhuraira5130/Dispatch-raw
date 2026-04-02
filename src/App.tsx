@@ -44,7 +44,13 @@ import {
   Bell,
   X,
   Bot,
-  Send
+  Send,
+  CameraOff,
+  Gauge,
+  ShieldCheck,
+  Rows3,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -464,6 +470,7 @@ export default function App() {
   const [showBootLoader, setShowBootLoader] = useState(true);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [faqOpen, setFaqOpen] = useState(false);
+  const [faqFullScreen, setFaqFullScreen] = useState(false);
   const [faqQuery, setFaqQuery] = useState('');
   const [helpAgentBusy, setHelpAgentBusy] = useState(false);
   const [askBotMessages, setAskBotMessages] = useState<AskBotMessage[]>([]);
@@ -687,20 +694,112 @@ export default function App() {
 
   const faqItems = [
     {
-      q: 'How do I start analysis?',
-      a: 'Set your channel name in Profile, add API key in API settings, then paste YouTube link and click Analyze.'
+      q: 'Start Analysis',
+      a: 'Begin analysis with your content and goal in focus.'
     },
     {
-      q: 'Why clip plan may not generate?',
-      a: 'For accuracy mode, transcript/captions are required. If transcript is unavailable, clip extraction is blocked.'
+      q: 'Find Weak Points',
+      a: 'Identify gaps between your intent and actual output quality.'
     },
     {
-      q: 'Gemini vs Groq model?',
-      a: 'Select model in API settings. Active API key provider must match selected model provider.'
+      q: 'Boost Visibility',
+      a: 'Get tips to improve reach, discovery, and audience retention.'
     },
     {
-      q: 'Where are saved items stored?',
-      a: 'Saved vault, history, and keys are stored locally in your browser storage.'
+      q: 'Summarize',
+      a: 'Get a concise overview of key points in your content.'
+    },
+    {
+      q: 'Check SEO',
+      a: 'Review SEO optimization and improve searchability.'
+    },
+    {
+      q: 'Find Keywords',
+      a: 'Extract and suggest relevant keywords for better discovery.'
+    },
+    {
+      q: 'Generate Ideas',
+      a: 'Brainstorm fresh content ideas based on your topic.'
+    },
+    {
+      q: 'Quick Feedback',
+      a: 'Get instant feedback on content quality and impact.'
+    },
+    {
+      q: 'Best Practices',
+      a: 'Learn proven strategies and recommendations for success.'
+    },
+    {
+      q: 'Title Ideas',
+      a: 'Generate punchy title options for higher click-through.'
+    },
+    {
+      q: 'Hook Improvement',
+      a: 'Strengthen opening lines to keep viewers watching longer.'
+    },
+    {
+      q: 'Audience Fit',
+      a: 'Align your message with the right target audience intent.'
+    },
+    {
+      q: 'Retention Tips',
+      a: 'Find drop-off points and improve watch-time consistency.'
+    },
+    {
+      q: 'Thumbnail Direction',
+      a: 'Get visual thumbnail direction based on topic mood and goal.'
+    },
+    {
+      q: 'Content Structure',
+      a: 'Organize sections in a clearer, more engaging flow.'
+    },
+    {
+      q: 'Call To Action',
+      a: 'Craft strong CTA lines for comments, shares, and subs.'
+    },
+    {
+      q: 'Competitor Angle',
+      a: 'Identify content angle gaps you can use to stand out.'
+    },
+    {
+      q: 'Rewrite Description',
+      a: 'Improve your description for clarity, keywords, and conversion.'
+    },
+    {
+      q: 'Hashtag Set',
+      a: 'Generate a balanced hashtag set for reach and relevance.'
+    },
+    {
+      q: 'Script Tightening',
+      a: 'Cut fluff and make your script cleaner and more engaging.'
+    },
+    {
+      q: 'Story Flow Check',
+      a: 'Validate logical flow so viewers stay hooked till the end.'
+    },
+    {
+      q: 'Shorts Adaptation',
+      a: 'Convert this idea into a high-retention Shorts format.'
+    },
+    {
+      q: 'CTA Variations',
+      a: 'Get multiple CTA versions for comments, shares, and subscribe.'
+    },
+    {
+      q: 'Upload Timing',
+      a: 'Recommend best posting windows based on audience behavior.'
+    },
+    {
+      q: 'Risk Check',
+      a: 'Flag risky wording that could hurt policy safety or trust.'
+    },
+    {
+      q: 'Engagement Hooks',
+      a: 'Generate hook lines that increase early watch retention.'
+    },
+    {
+      q: 'Comment Magnet',
+      a: 'Create prompts that motivate viewers to comment naturally.'
     }
   ];
 
@@ -814,6 +913,7 @@ export default function App() {
   };
 
   const ASK_BOT_MAX_MESSAGES_PER_HOUR = 12;
+  const askBotCapacityPercent = Math.min(100, Math.round((askBotHourMessageCount / ASK_BOT_MAX_MESSAGES_PER_HOUR) * 100));
   const ASK_BOT_BLOCK_DURATION_MS = 2 * 60 * 60 * 1000;
 
   const incrementAskBotStrike = () => {
@@ -3357,10 +3457,25 @@ export default function App() {
           className={cn(
             'faq-widget-wrap',
             botVisible ? 'faq-widget-visible' : 'faq-widget-hidden',
+            faqOpen && 'faq-widget-open',
             botFolded && 'faq-widget-folded',
             isLowPerformanceDevice && 'faq-widget-low-perf'
           )}
         >
+          <AnimatePresence>
+            {faqOpen && (
+              <motion.button
+                type="button"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                className="faq-widget-backdrop"
+                aria-label="Close Assistance Hub overlay"
+                onClick={() => setFaqOpen(false)}
+              />
+            )}
+          </AnimatePresence>
           <AnimatePresence>
             {faqOpen && (
               <motion.div
@@ -3370,49 +3485,62 @@ export default function App() {
                 transition={{ duration: 0.22, ease: 'easeOut' }}
                 className={cn(
                   'faq-panel',
+                  faqFullScreen && 'faq-panel-fullscreen',
                   theme === 'dark' ? 'faq-panel-dark' : 'faq-panel-light'
                 )}
                 role="dialog"
-                aria-label="Ask Me panel"
+                aria-label="Assistance Hub panel"
               >
                 <div className="faq-panel-head">
-                  <div className="flex items-center gap-2">
-                    <Bot className="w-4 h-4 text-sky-500" />
-                    <p className="faq-panel-title">Ask Me</p>
+                  <div className="faq-head-brand">
+                    <span className="faq-agent-avatar" aria-hidden="true">
+                      <span className="faq-agent-avatar-core">
+                        <Bot className="w-4 h-4" />
+                      </span>
+                    </span>
+                    <p className="faq-panel-title">ASSISTANCE HUB</p>
                   </div>
                   <div className="askbot-head-actions">
                     <button
+                      onClick={() => setFaqFullScreen(!faqFullScreen)}
+                      className="askbot-head-icon-btn faq-fullscreen-btn"
+                      aria-label={faqFullScreen ? 'Exit full-screen' : 'Enter full-screen'}
+                      title={faqFullScreen ? 'Exit full-screen' : 'Enter full-screen'}
+                    >
+                      {faqFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                    </button>
+                    <button
                       onClick={() => setFaqOpen(false)}
                       className="askbot-head-icon-btn faq-panel-close"
-                      aria-label="Close Ask Me"
-                      title="Close Ask Me"
+                      aria-label="Close Assistance Hub"
+                      title="Close Assistance Hub"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
-                <p className="askbot-banner-line">How can I help you today? Ask anything and get a clear answer.</p>
-
-                <div
-                  className={cn(
-                    'mx-3 mb-2 rounded-lg border px-2.5 py-2 text-[10px] font-semibold tracking-wide flex flex-wrap items-center gap-x-3 gap-y-1 uppercase',
-                    theme === 'dark'
-                      ? 'border-zinc-700/70 bg-zinc-900/80 text-zinc-300'
-                      : 'border-zinc-300 bg-zinc-100 text-zinc-700'
-                  )}
-                >
-                  <span className={cn('inline-flex items-center gap-1', askBotSessionTerminated ? 'text-rose-500' : 'text-emerald-500')}>
-                    <Shield className="w-3 h-3" />
-                    Session: {askBotSessionTerminated ? 'Terminated' : 'Active'}
-                  </span>
-                  <span>Strikes: {askBotStrikeCount}/3</span>
-                  <span>CAPACITY: {askBotHourMessageCount}/{ASK_BOT_MAX_MESSAGES_PER_HOUR}</span>
+                <div className="askbot-status-row" aria-label="Session status indicators">
+                  <div className={cn('askbot-status-chip', askBotSessionTerminated ? 'askbot-status-chip-off' : 'askbot-status-chip-on')}>
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>{askBotSessionTerminated ? 'SESSION PAUSED' : 'SESSION ACTIVE'}</span>
+                  </div>
+                  <div className="askbot-status-chip">
+                    <Rows3 className="w-3.5 h-3.5" />
+                    <span>{askBotStrikeCount}/3 STRIKES</span>
+                  </div>
+                  <div className="askbot-status-chip askbot-capacity-chip">
+                    <Gauge className="w-3.5 h-3.5" />
+                    <span>CAPACITY {askBotHourMessageCount}/{ASK_BOT_MAX_MESSAGES_PER_HOUR}</span>
+                    <span className="askbot-capacity-track" aria-hidden="true">
+                      <span className="askbot-capacity-fill" style={{ width: `${askBotCapacityPercent}%` }} />
+                    </span>
+                  </div>
                 </div>
 
                 <div className={cn('askbot-chat-list', theme === 'dark' ? 'askbot-chat-dark' : 'askbot-chat-light')} ref={askBotMessagesRef}>
                   {askBotMessages.length === 0 && (
-                    <div className="askbot-empty-state">Ask any question to receive clear and focused guidance.</div>
+                    <div className="askbot-empty-state">Ready to decode algorithms. What's your query?</div>
                   )}
                   {askBotMessages.map((message) => (
                     <div
@@ -3431,14 +3559,12 @@ export default function App() {
                         )}
                       >
                         {message.role === 'thinking' ? (
-                          <span className="askbot-thinking-inline" aria-label="Bot is thinking">
-                            <span className="askbot-mini-robot" aria-hidden="true">
-                              <span className="askbot-mini-robot-head">
-                                <span className="askbot-mini-eye"></span>
-                                <span className="askbot-mini-eye"></span>
-                              </span>
-                              <span className="askbot-mini-antenna"></span>
+                          <span className="askbot-thinking-inline" aria-label="Assistant is thinking">
+                            <span className="askbot-thinking-core" aria-hidden="true">
+                              <span className="askbot-thinking-ring"></span>
+                              <span className="askbot-thinking-ring askbot-thinking-ring-delay"></span>
                             </span>
+                            <span className="askbot-thinking-text">Analyzing your request...</span>
                           </span>
                         ) : (
                           message.text
@@ -3452,9 +3578,9 @@ export default function App() {
                   <input
                     value={faqQuery}
                     onChange={(e) => setFaqQuery(e.target.value)}
-                    placeholder={askBotSessionTerminated ? 'Session terminated due to security protocol violation.' : 'Ask your question'}
+                    placeholder={askBotSessionTerminated ? 'Session terminated due to security protocol violation.' : 'Type your query...'}
                     className="faq-search"
-                    aria-label="Ask Me"
+                    aria-label="Assistance Hub input"
                     disabled={askBotSessionTerminated}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !helpAgentBusy && !askBotSessionTerminated) askHelpAgent(faqQuery);
@@ -3464,17 +3590,17 @@ export default function App() {
                     onClick={() => askHelpAgent(faqQuery)}
                     disabled={helpAgentBusy || askBotSessionTerminated}
                     className="faq-ask-btn"
-                    aria-label="Send question to Ask Me"
+                    aria-label="Send question to Assistance Hub"
                     title="Ask"
                   >
                     <Send className="w-4 h-4" />
-                    <span>Ask</span>
+                    <span>ASK</span>
                   </button>
                 </div>
 
                 <p className="faq-quick-title">Quick Prompts</p>
                 <div className="faq-list">
-                  {filteredFaq.map((item) => (
+                  {filteredFaq.map((item, index) => (
                     <button
                       key={item.q}
                       className="faq-item faq-item-btn"
@@ -3482,6 +3608,9 @@ export default function App() {
                       onClick={() => askHelpAgent(item.q)}
                       title="Ask this prompt"
                     >
+                      <span className="faq-tile-icon" aria-hidden="true">
+                        {index === 0 ? <Search className="w-3.5 h-3.5" /> : index === 1 ? <CameraOff className="w-3.5 h-3.5" /> : <Cpu className="w-3.5 h-3.5" />}
+                      </span>
                       <p className="faq-q">{item.q}</p>
                     </button>
                   ))}
@@ -3509,24 +3638,13 @@ export default function App() {
                 theme === 'dark' ? 'faq-fab-dark' : 'faq-fab-light',
                 !faqOpen && 'faq-fab-dynamic'
               )}
-              title="Open Ask Me"
-              aria-label="Open Ask Me"
+              title="Open Assistance Hub"
+              aria-label="Open Assistance Hub"
             >
-              <span className="askbot-fab-robot" aria-hidden="true">
-                <span className="askbot-fab-sleep-bubble askbot-fab-sleep-1">z</span>
-                <span className="askbot-fab-sleep-bubble askbot-fab-sleep-2">z</span>
-                <span className="askbot-fab-head">
-                  <span className="askbot-fab-eye askbot-fab-eye-sleep"></span>
-                  <span className="askbot-fab-eye askbot-fab-eye-sleep"></span>
-                </span>
-                <span className="askbot-fab-antenna"></span>
-                <span className="askbot-fab-body"></span>
-                <span className="askbot-fab-arm askbot-fab-arm-left"></span>
-                <span className="askbot-fab-arm askbot-fab-arm-right"></span>
-                <span className="askbot-fab-leg askbot-fab-leg-left"></span>
-                <span className="askbot-fab-leg askbot-fab-leg-right"></span>
+              <span className="faq-fab-agent-icon" aria-hidden="true">
+                <Bot className="w-3.5 h-3.5" />
               </span>
-              <span className={cn(theme === 'dark' ? 'text-cyan-50' : 'text-sky-950')}>Ask Me</span>
+              <span className={cn(theme === 'dark' ? 'text-cyan-50' : 'text-sky-950')}>ASK AGENT RAW</span>
             </button>
 
             <button
