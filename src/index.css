@@ -1609,7 +1609,7 @@ body {
     grid-row: 2;
     overflow: hidden;
     display: -webkit-box;
-    -webkit-line-clamp: 1;
+    -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     color: #93c5fd;
   }
@@ -1820,18 +1820,20 @@ body {
     grid-row: 2;
     overflow: hidden;
     display: -webkit-box;
-    -webkit-line-clamp: 1;
+    -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     color: #93c5fd;
   }
 
   .faq-widget-open .faq-panel:not(.faq-panel-fullscreen) {
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    bottom: 10px;
-    width: calc(100vw - 12px);
-    max-height: calc(100dvh - 20px);
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+    max-height: calc(100dvh - 16px);
+    transform: none;
+    border-radius: 16px;
   }
 
   .faq-panel-fullscreen .faq-search-row {
@@ -1840,6 +1842,10 @@ body {
 
   .faq-panel-fullscreen .askbot-status-row {
     padding-top: 8px;
+  }
+
+  .faq-item {
+    min-height: 92px;
   }
 }
 
