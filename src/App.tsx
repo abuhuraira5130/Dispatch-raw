@@ -3619,6 +3619,7 @@ export default function App() {
                         {index === 0 ? <Search className="w-3.5 h-3.5" /> : index === 1 ? <CameraOff className="w-3.5 h-3.5" /> : <Cpu className="w-3.5 h-3.5" />}
                       </span>
                       <p className="faq-q">{item.q}</p>
+                      <p className="faq-a">{item.a}</p>
                     </button>
                   ))}
                   {filteredFaq.length === 0 && (
