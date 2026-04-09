@@ -3187,3 +3187,76 @@ html {
     font-size: 12.5px !important;
   }
 }
+
+/* Final quick prompt alignment system: pro layout, consistent icon scale, and glassmorphism. */
+.faq-list {
+  display: flex !important;
+  flex-direction: column;
+  gap: 10px !important;
+}
+
+.faq-item.faq-item-btn {
+  width: 100% !important;
+  min-height: 56px;
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 12px 20px !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  background: rgba(30, 41, 59, 0.3);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  text-align: left;
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.faq-item.faq-item-btn:hover {
+  background: rgba(51, 65, 85, 0.4);
+  border-color: rgba(45, 212, 191, 0.55);
+  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.24) inset, 0 8px 20px rgba(8, 145, 178, 0.22);
+  transform: translateY(-1px);
+}
+
+.faq-item.faq-item-btn .faq-tile-icon {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  border-radius: 10px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+}
+
+.faq-item.faq-item-btn .faq-tile-icon svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+.faq-item.faq-item-btn .faq-q {
+  margin: 0 !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+  text-align: left;
+  letter-spacing: 0.01em;
+}
+
+@media (max-width: 768px) {
+  .faq-item.faq-item-btn {
+    min-height: 54px;
+    padding: 12px 16px !important;
+    gap: 10px;
+  }
+
+  .faq-item.faq-item-btn .faq-q {
+    font-size: 0.9rem !important;
+  }
+
+  .faq-panel-fullscreen .faq-list {
+    gap: 10px !important;
+  }
+}
