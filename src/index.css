@@ -3208,6 +3208,9 @@ html {
   background: rgba(30, 41, 59, 0.3);
   -webkit-backdrop-filter: blur(5px);
   backdrop-filter: blur(5px);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   text-align: left;
   transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
@@ -3229,6 +3232,10 @@ html {
   align-items: center;
   justify-content: center;
   margin: 0;
+  position: relative;
+  left: 0;
+  transform: none !important;
+  z-index: 2;
 }
 
 .faq-item.faq-item-btn .faq-tile-icon svg {
@@ -3243,6 +3250,8 @@ html {
   line-height: 1.35 !important;
   text-align: left;
   letter-spacing: 0.01em;
+  position: relative;
+  z-index: 2;
 }
 
 @media (max-width: 768px) {
