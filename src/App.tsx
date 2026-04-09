@@ -22,6 +22,9 @@ import {
   Tag,
   ChevronRight,
   Play,
+  Rocket,
+  FileText,
+  BarChart3,
   ThumbsUp,
   ThumbsDown,
   Share2,
@@ -45,7 +48,6 @@ import {
   X,
   Bot,
   Send,
-  CameraOff,
   Gauge,
   ShieldCheck,
   Rows3,
@@ -695,113 +697,187 @@ export default function App() {
   const faqItems = [
     {
       q: 'Start Analysis',
-      a: 'Begin analysis with your content and goal in focus.'
+      a: 'Begin analysis with your content and goal in focus.',
+      icon: 'play'
     },
     {
       q: 'Find Weak Points',
-      a: 'Identify gaps between your intent and actual output quality.'
+      a: 'Identify gaps between your intent and actual output quality.',
+      icon: 'shield'
     },
     {
       q: 'Boost Visibility',
-      a: 'Get tips to improve reach, discovery, and audience retention.'
+      a: 'Get tips to improve reach, discovery, and audience retention.',
+      icon: 'rocket'
     },
     {
       q: 'Summarize',
-      a: 'Get a concise overview of key points in your content.'
+      a: 'Get a concise overview of key points in your content.',
+      icon: 'document'
     },
     {
       q: 'Check SEO',
-      a: 'Review SEO optimization and improve searchability.'
+      a: 'Review SEO optimization and improve searchability.',
+      icon: 'chart'
     },
     {
       q: 'Find Keywords',
-      a: 'Extract and suggest relevant keywords for better discovery.'
+      a: 'Extract and suggest relevant keywords for better discovery.',
+      icon: 'tag'
     },
     {
       q: 'Generate Ideas',
-      a: 'Brainstorm fresh content ideas based on your topic.'
+      a: 'Brainstorm fresh content ideas based on your topic.',
+      icon: 'sparkles'
     },
     {
       q: 'Quick Feedback',
-      a: 'Get instant feedback on content quality and impact.'
+      a: 'Get instant feedback on content quality and impact.',
+      icon: 'alert'
     },
     {
       q: 'Best Practices',
-      a: 'Learn proven strategies and recommendations for success.'
+      a: 'Learn proven strategies and recommendations for success.',
+      icon: 'shieldCheck'
     },
     {
       q: 'Title Ideas',
-      a: 'Generate punchy title options for higher click-through.'
+      a: 'Generate punchy title options for higher click-through.',
+      icon: 'message'
     },
     {
       q: 'Hook Improvement',
-      a: 'Strengthen opening lines to keep viewers watching longer.'
+      a: 'Strengthen opening lines to keep viewers watching longer.',
+      icon: 'search'
     },
     {
       q: 'Audience Fit',
-      a: 'Align your message with the right target audience intent.'
+      a: 'Align your message with the right target audience intent.',
+      icon: 'globe'
     },
     {
       q: 'Retention Tips',
-      a: 'Find drop-off points and improve watch-time consistency.'
+      a: 'Find drop-off points and improve watch-time consistency.',
+      icon: 'trendingUp'
     },
     {
       q: 'Thumbnail Direction',
-      a: 'Get visual thumbnail direction based on topic mood and goal.'
+      a: 'Get visual thumbnail direction based on topic mood and goal.',
+      icon: 'image'
     },
     {
       q: 'Content Structure',
-      a: 'Organize sections in a clearer, more engaging flow.'
+      a: 'Organize sections in a clearer, more engaging flow.',
+      icon: 'rows'
     },
     {
       q: 'Call To Action',
-      a: 'Craft strong CTA lines for comments, shares, and subs.'
+      a: 'Craft strong CTA lines for comments, shares, and subs.',
+      icon: 'send'
     },
     {
       q: 'Competitor Angle',
-      a: 'Identify content angle gaps you can use to stand out.'
+      a: 'Identify content angle gaps you can use to stand out.',
+      icon: 'radar'
     },
     {
       q: 'Rewrite Description',
-      a: 'Improve your description for clarity, keywords, and conversion.'
+      a: 'Improve your description for clarity, keywords, and conversion.',
+      icon: 'edit'
     },
     {
       q: 'Hashtag Set',
-      a: 'Generate a balanced hashtag set for reach and relevance.'
+      a: 'Generate a balanced hashtag set for reach and relevance.',
+      icon: 'bookmark'
     },
     {
       q: 'Script Tightening',
-      a: 'Cut fluff and make your script cleaner and more engaging.'
+      a: 'Cut fluff and make your script cleaner and more engaging.',
+      icon: 'sparkles'
     },
     {
       q: 'Story Flow Check',
-      a: 'Validate logical flow so viewers stay hooked till the end.'
+      a: 'Validate logical flow so viewers stay hooked till the end.',
+      icon: 'clock'
     },
     {
       q: 'Shorts Adaptation',
-      a: 'Convert this idea into a high-retention Shorts format.'
+      a: 'Convert this idea into a high-retention Shorts format.',
+      icon: 'play'
     },
     {
       q: 'CTA Variations',
-      a: 'Get multiple CTA versions for comments, shares, and subscribe.'
+      a: 'Get multiple CTA versions for comments, shares, and subscribe.',
+      icon: 'message'
     },
     {
       q: 'Upload Timing',
-      a: 'Recommend best posting windows based on audience behavior.'
+      a: 'Recommend best posting windows based on audience behavior.',
+      icon: 'clock'
     },
     {
       q: 'Risk Check',
-      a: 'Flag risky wording that could hurt policy safety or trust.'
+      a: 'Flag risky wording that could hurt policy safety or trust.',
+      icon: 'alert'
     },
     {
       q: 'Engagement Hooks',
-      a: 'Generate hook lines that increase early watch retention.'
+      a: 'Generate hook lines that increase early watch retention.',
+      icon: 'sparkles'
     },
     {
       q: 'Comment Magnet',
-      a: 'Create prompts that motivate viewers to comment naturally.'
+      a: 'Create prompts that motivate viewers to comment naturally.',
+      icon: 'message'
     }
   ];
+
+  const getFaqPromptIcon = (icon: string, className: string) => {
+    switch (icon) {
+      case 'play':
+        return <Play className={className} />;
+      case 'shield':
+        return <ShieldCheck className={className} />;
+      case 'rocket':
+        return <Rocket className={className} />;
+      case 'document':
+        return <FileText className={className} />;
+      case 'chart':
+        return <BarChart3 className={className} />;
+      case 'tag':
+        return <Tag className={className} />;
+      case 'sparkles':
+        return <Sparkles className={className} />;
+      case 'alert':
+        return <AlertCircle className={className} />;
+      case 'shieldCheck':
+        return <ShieldCheck className={className} />;
+      case 'message':
+        return <MessageSquare className={className} />;
+      case 'search':
+        return <Search className={className} />;
+      case 'globe':
+        return <Globe className={className} />;
+      case 'trendingUp':
+        return <TrendingUp className={className} />;
+      case 'image':
+        return <Image className={className} />;
+      case 'rows':
+        return <Rows3 className={className} />;
+      case 'send':
+        return <Send className={className} />;
+      case 'radar':
+        return <Radar className={className} />;
+      case 'edit':
+        return <Edit2 className={className} />;
+      case 'bookmark':
+        return <Bookmark className={className} />;
+      case 'clock':
+        return <Clock className={className} />;
+      default:
+        return <Search className={className} />;
+    }
+  };
 
   const filteredFaq = faqItems.filter((item) => {
     const query = faqQuery.trim().toLowerCase();
@@ -3607,7 +3683,7 @@ export default function App() {
 
                 <p className="faq-quick-title">Quick Prompts</p>
                 <div className="faq-list">
-                  {filteredFaq.map((item, index) => (
+                  {filteredFaq.map((item) => (
                     <button
                       key={item.q}
                       className="faq-item faq-item-btn"
@@ -3616,7 +3692,7 @@ export default function App() {
                       title="Ask this prompt"
                     >
                       <span className="faq-tile-icon" aria-hidden="true">
-                        {index === 0 ? <Search className="w-3.5 h-3.5" /> : index === 1 ? <CameraOff className="w-3.5 h-3.5" /> : <Cpu className="w-3.5 h-3.5" />}
+                        {getFaqPromptIcon(item.icon, 'w-[18px] h-[18px]')}
                       </span>
                       <p className="faq-q">{item.q}</p>
                     </button>

@@ -3223,11 +3223,11 @@ html {
 }
 
 .faq-item.faq-item-btn .faq-tile-icon {
-  width: 36px !important;
-  height: 36px !important;
-  min-width: 36px !important;
-  min-height: 36px !important;
-  border-radius: 10px !important;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  border-radius: 0 !important;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3236,6 +3236,11 @@ html {
   left: 0;
   transform: none !important;
   z-index: 2;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: #7dd3fc;
+  flex: 0 0 18px;
 }
 
 .faq-item.faq-item-btn .faq-tile-icon svg {
@@ -3259,6 +3264,13 @@ html {
     min-height: 54px;
     padding: 12px 16px !important;
     gap: 10px;
+  }
+
+  .faq-item.faq-item-btn .faq-tile-icon {
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px !important;
+    min-height: 18px !important;
   }
 
   .faq-item.faq-item-btn .faq-q {
