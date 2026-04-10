@@ -50,6 +50,8 @@ import {
   Send,
   Gauge,
   ShieldCheck,
+  AlertTriangle,
+  Activity,
   Rows3,
   Maximize2,
   Minimize2
@@ -359,6 +361,40 @@ const SavedItemSkeleton = () => (
   </div>
 );
 
+const CountUpNumber = ({
+  value,
+  trigger,
+  duration = 1000,
+}: {
+  value: number;
+  trigger: boolean;
+  duration?: number;
+}) => {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    if (!trigger) return;
+
+    const target = Number.isFinite(value) ? value : 0;
+    const start = performance.now();
+    let raf = 0;
+
+    const tick = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(Math.round(target * eased));
+      if (progress < 1) {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, duration, trigger]);
+
+  return <>{displayValue}</>;
+};
+
 // Error Boundary Component
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
   constructor(props: { children: React.ReactNode }) {
@@ -486,6 +522,8 @@ export default function App() {
   const askBotStrikeCountRef = useRef(0);
   const askBotSessionTerminatedRef = useRef(false);
   const askBotMessageTimestampsRef = useRef<number[]>([]);
+  const faqOpenRef = useRef(false);
+  const faqFullScreenRef = useRef(false);
 
   const [apiKeys, setApiKeys] = useState<{ id: string, name: string, key: string, active: boolean, provider?: KeyProvider }[]>(() => {
     const saved = localStorage.getItem('dispatch_gemini_keys');
@@ -585,6 +623,8 @@ export default function App() {
   const [isLowPerformanceDevice, setIsLowPerformanceDevice] = useState(false);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
   const [scrollDepth, setScrollDepth] = useState(0);
+  const [seoScoreInView, setSeoScoreInView] = useState(false);
+  const seoScoreRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     localStorage.setItem('dispatch_saved_vault', JSON.stringify(savedItems));
@@ -616,6 +656,7 @@ export default function App() {
 
   useEffect(() => {
     if (!result) return;
+    setSeoScoreInView(false);
     setThumbnailSettings(inferThumbnailDefaults(url, result));
     setThumbnailSuggestion(null);
     setThumbnailFinalUrl(null);
@@ -670,6 +711,50 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    const nodes = document.querySelectorAll<HTMLElement>('[data-scroll-reveal]');
+    if (!nodes.length) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const target = entry.target as HTMLElement;
+            target.classList.add('is-visible');
+            observer.unobserve(target);
+          }
+        });
+      },
+      {
+        threshold: 0.18,
+        rootMargin: '0px 0px -8% 0px',
+      }
+    );
+
+    nodes.forEach((node) => observer.observe(node));
+    return () => observer.disconnect();
+  }, [result, showHistory, showSaved, showApiSettings, showProfile]);
+
+  useEffect(() => {
+    const node = seoScoreRef.current;
+    if (!node || seoScoreInView) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setSeoScoreInView(true);
+            observer.disconnect();
+          }
+        });
+      },
+      { threshold: 0.3 }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [seoScoreInView, result]);
+
   const showToast = (message: string, kind: ToastKind = 'info', duration = 5000) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setToasts((prev) => [...prev, { id, message, kind }]);
@@ -703,7 +788,7 @@ export default function App() {
     {
       q: 'Find Weak Points',
       a: 'Identify gaps between your intent and actual output quality.',
-      icon: 'shield'
+      icon: 'activity'
     },
     {
       q: 'Boost Visibility',
@@ -838,6 +923,8 @@ export default function App() {
         return <Play className={className} />;
       case 'shield':
         return <ShieldCheck className={className} />;
+      case 'activity':
+        return <Activity className={className} />;
       case 'rocket':
         return <Rocket className={className} />;
       case 'document':
@@ -893,6 +980,31 @@ export default function App() {
   useEffect(() => {
     const timer = window.setTimeout(() => setBotVisible(true), 5000);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    faqOpenRef.current = faqOpen;
+    faqFullScreenRef.current = faqFullScreen;
+  }, [faqOpen, faqFullScreen]);
+
+  useEffect(() => {
+    let loopTimer: number | undefined;
+    const startTimer = window.setTimeout(() => {
+      if (!faqOpenRef.current && !faqFullScreenRef.current) {
+        setBotFolded(true);
+      }
+
+      loopTimer = window.setInterval(() => {
+        // Keep user control first: do not auto-toggle while assistant is actively open.
+        if (faqOpenRef.current || faqFullScreenRef.current) return;
+        setBotFolded((prev) => !prev);
+      }, 10000);
+    }, 10000);
+
+    return () => {
+      window.clearTimeout(startTimer);
+      if (loopTimer) window.clearInterval(loopTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -2007,7 +2119,7 @@ export default function App() {
     <ErrorBoundary>
       <div
         className={cn(
-          "min-h-screen pb-20 transition-all adaptive-shell",
+          "min-h-screen pb-0 transition-all adaptive-shell",
           theme === 'dark' ? "bg-black dark" : "bg-white",
           isCompactViewport ? "is-compact-viewport" : "is-wide-viewport",
           isLowPerformanceDevice ? "is-low-perf" : "is-high-perf"
@@ -2016,7 +2128,7 @@ export default function App() {
         {/* Premium 'Neural' Header with Animated Background */}
         <header className={cn(
           "sticky top-0 z-50 border-b transition-all duration-700 backdrop-blur-xl overflow-hidden relative isolate",
-          theme === 'dark' ? "border-white/5 bg-black/40" : "border-zinc-200/50 bg-white/40"
+          theme === 'dark' ? "border-white/10 bg-[#10141e]/90" : "border-zinc-200/80 bg-white/90"
         )}>
           {/* Beautiful Animated Background Container */}
           <div className="header-animated-bg style-final">
@@ -2043,8 +2155,8 @@ export default function App() {
                 </div>
               </div>
               <div className="min-w-0">
-                <h1 className="font-bold text-base sm:text-2xl tracking-tighter uppercase text-black dark:text-white leading-none truncate">Dispatch <span className="text-red-600 dark:text-red-500">Raw</span></h1>
-                <p className="hidden sm:block text-[10px] text-zinc-600 dark:text-zinc-400 font-mono uppercase tracking-[0.3em] mt-1 font-bold">Strategic Intelligence Agency</p>
+                <h1 className="font-bold text-base sm:text-2xl tracking-tighter uppercase text-zinc-800 dark:text-zinc-100 leading-none truncate">Dispatch <span className="text-red-600 dark:text-red-500">Raw</span></h1>
+                <p className="hidden sm:block text-[10px] text-zinc-600 dark:text-zinc-300 font-mono uppercase tracking-[0.3em] mt-1 font-bold">Strategic Intelligence Agency</p>
               </div>
             </div>
 
@@ -2059,7 +2171,12 @@ export default function App() {
               <div className="header-action-row flex items-center gap-1 sm:gap-3">
                 <button
                   onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                  className="header-icon-btn p-2 rounded-lg bg-white dark:bg-black/50 border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition-all flex items-center justify-center"
+                  className={cn(
+                    "header-icon-btn app-action-btn ripple-btn p-2 rounded-lg transition-all flex items-center justify-center",
+                    theme === 'dark'
+                      ? "bg-slate-900/85 border border-slate-600 text-amber-300 hover:bg-slate-800 hover:text-amber-200 shadow-sm"
+                      : "bg-white/95 border border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900 shadow-sm"
+                  )}
                   title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 >
                   {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -2067,7 +2184,7 @@ export default function App() {
                 <button
                   onClick={() => { setShowApiSettings(!showApiSettings); setShowHistory(false); setShowSaved(false); setShowProfile(false); }}
                   className={cn(
-                    "header-icon-btn p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
+                    "header-icon-btn app-action-btn ripple-btn p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
                     showApiSettings
                       ? "bg-blue-600 text-white shadow-blue-500/20"
                       : "bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-400 hover:bg-blue-600 hover:text-white"
@@ -2080,7 +2197,7 @@ export default function App() {
                 <button
                   onClick={() => { setShowSaved(!showSaved); setShowHistory(false); setShowApiSettings(false); setShowProfile(false); }}
                   className={cn(
-                    "header-icon-btn p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
+                    "header-icon-btn app-action-btn ripple-btn p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
                     showSaved
                       ? "bg-purple-600 text-white shadow-purple-500/20"
                       : "bg-purple-50 dark:bg-purple-900/10 text-purple-700 dark:text-purple-400 hover:bg-purple-600 hover:text-white"
@@ -2092,7 +2209,7 @@ export default function App() {
                 <button
                   onClick={() => { setShowHistory(!showHistory); setShowSaved(false); setShowApiSettings(false); setShowProfile(false); }}
                   className={cn(
-                    "header-icon-btn p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
+                    "header-icon-btn app-action-btn ripple-btn p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
                     showHistory
                       ? "bg-emerald-600 text-white shadow-emerald-500/20"
                       : "bg-emerald-50 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white"
@@ -2104,7 +2221,7 @@ export default function App() {
                 <button
                   onClick={() => { setShowProfile(!showProfile); setShowHistory(false); setShowSaved(false); setShowApiSettings(false); }}
                   className={cn(
-                    "header-icon-btn p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
+                    "header-icon-btn app-action-btn ripple-btn p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-sm",
                     showProfile
                       ? "bg-red-600 text-white shadow-red-500/20"
                       : "bg-red-50 dark:bg-red-900/10 text-red-700 dark:text-red-400 hover:bg-red-600 hover:text-white"
@@ -2121,7 +2238,7 @@ export default function App() {
 
         {showBootLoader && (
           <div className="global-loader-overlay" role="status" aria-live="polite" aria-busy="true">
-            <div className="global-loader-card">
+            <div className="global-loader-core">
               <div className="global-loader-spinner" aria-hidden="true" />
               <p className="global-loader-title">Loading...</p>
               <p className="global-loader-subtitle">Preparing your dashboard</p>
@@ -2129,7 +2246,7 @@ export default function App() {
           </div>
         )}
 
-        <main className="max-w-4xl mx-auto px-3 sm:px-4 pt-8 sm:pt-12">
+        <main className="max-w-5xl mx-auto px-3 sm:px-4 pt-10 sm:pt-14 main-content-entrance">
           {showHistory ? (
             <motion.div
               initial={{ opacity: 0, x: 20 }}
@@ -2707,11 +2824,12 @@ export default function App() {
           ) : (
             <>
               {/* Hero Section */}
-              <div className="text-center mb-12">
+              <div className="text-center mb-14 hero-block">
                 <motion.h2
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-4xl sm:text-6xl font-bold tracking-tighter mb-4 uppercase"
+                  initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                  className="text-4xl sm:text-6xl font-bold tracking-tight mb-4 uppercase"
                 >
                   FINAL <span className="neon-red-glow">PRODUCTION</span>
                 </motion.h2>
@@ -2719,7 +2837,7 @@ export default function App() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className="text-black dark:text-[#B0B0B0] max-w-xl mx-auto text-sm sm:text-base font-black tracking-widest uppercase"
+                  className="text-zinc-700 dark:text-zinc-300 max-w-2xl mx-auto text-base sm:text-lg font-normal tracking-wide"
                 >
                   ALGORITHM DOMINATION ENGINE | DEEP CONTENT FORENSICS
                 </motion.p>
@@ -2730,7 +2848,7 @@ export default function App() {
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 whileHover={{ scale: 1.01 }}
-                className="relative group mb-16 mx-auto max-w-2xl px-2"
+                className="relative group mb-20 mx-auto max-w-3xl px-2"
               >
                 {/* Perpetual Glow Layers - Intelligent Reactive Logic */}
                 <div className={cn(
@@ -2743,8 +2861,8 @@ export default function App() {
                 )}></div>
 
                 <form onSubmit={handleAnalyze} className={cn(
-                  "relative flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0 backdrop-blur-3xl rounded-3xl border border-zinc-200 dark:border-white/10 p-2 sm:p-1.5 transition-all duration-700 focus-within:ring-2 focus-within:ring-red-500/50",
-                  theme === 'dark' ? "bg-black/80 shadow-none" : "bg-white shadow-[0_15px_60px_-15px_rgba(0,0,0,0.1)] group-hover:shadow-[0_20px_80px_-10px_rgba(0,0,0,0.2)]"
+                  "relative input-shell input-glow-pulse flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0 backdrop-blur-3xl rounded-3xl border p-2 sm:p-1.5 transition-all duration-700 focus-within:ring-2 focus-within:ring-red-500/30",
+                  theme === 'dark' ? "border-zinc-700/70 bg-[#1a202c] shadow-none" : "border-zinc-200 bg-white shadow-[0_15px_60px_-15px_rgba(0,0,0,0.1)] group-hover:shadow-[0_20px_80px_-10px_rgba(0,0,0,0.14)]"
                 )}>
                   <div className="w-full flex items-center">
                     <div className="pl-3 sm:pl-4 text-red-600 dark:text-red-500">
@@ -2756,8 +2874,8 @@ export default function App() {
                       onChange={(e) => setUrl(e.target.value)}
                       placeholder="PASTE YOUTUBE URL..."
                       className={cn(
-                        "w-full bg-transparent border-none focus:ring-0 px-4 sm:px-6 py-3.5 sm:py-5 font-black tracking-tight text-sm outline-none selection:bg-red-500/30",
-                        theme === 'dark' ? "text-white placeholder:text-zinc-500" : "text-black placeholder:text-zinc-600"
+                        "w-full bg-transparent border-none focus:ring-0 px-4 sm:px-6 py-3.5 sm:py-5 font-medium tracking-tight text-sm outline-none selection:bg-red-500/30",
+                        theme === 'dark' ? "text-zinc-100 placeholder:text-zinc-400" : "text-zinc-800 placeholder:text-zinc-500"
                       )}
                     />
                   </div>
@@ -2765,10 +2883,10 @@ export default function App() {
                     type="submit"
                     disabled={loading}
                     className={cn(
-                      "w-full sm:w-auto sm:min-w-[10.25rem] justify-center px-5 sm:px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 uppercase tracking-tighter shadow-xl shadow-red-500/20 active:scale-95",
+                      "w-full sm:w-auto sm:min-w-[10.25rem] justify-center px-5 sm:px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 uppercase tracking-tighter shadow-xl shadow-red-500/20 active:scale-95 app-action-btn ripple-btn app-btn-primary",
                       loading
                         ? "bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed"
-                        : "bg-red-600 text-white hover:bg-red-500"
+                        : "text-white"
                     )}
                   >
                     {loading ? (
@@ -2803,7 +2921,7 @@ export default function App() {
                     </div>
                     <button
                       onClick={() => setShowHistory(true)}
-                      className="text-[10px] font-mono text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300 uppercase tracking-widest"
+                      className="link-style text-[10px] font-mono text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300 uppercase tracking-widest"
                     >
                       View All Archive
                     </button>
@@ -2868,7 +2986,7 @@ export default function App() {
                 {loading && <LoadingResults step={loadingStep} />}
 
                 {result && (
-                  <div className="space-y-8">
+                  <div className="space-y-10">
                     <div className="relative z-20 isolate flex w-full sm:w-auto sm:flex-wrap sm:items-center sm:gap-3">
                       <button
                         onClick={handleBackToHomePage}
@@ -2903,11 +3021,11 @@ export default function App() {
                     )}
 
                     {/* Summary Section */}
-                    <section className={cn("rounded-2xl overflow-hidden border", theme === 'dark' ? "bg-black border-white/10" : "bg-white border-zinc-200 shadow-sm")}>
+                    <section data-scroll-reveal data-reveal-delay="0" className={cn("seo-card rounded-2xl overflow-hidden border", theme === 'dark' ? "bg-[#1a202c] border-zinc-700/70" : "bg-white border-zinc-200 shadow-sm")}>
                       <div className={cn("p-6 border-b flex items-center justify-between", theme === 'dark' ? "border-zinc-800" : "border-zinc-100")}>
                         <div className="flex items-center gap-3">
                           <Globe className="text-blue-500 w-5 h-5" />
-                          <h3 className="font-bold uppercase tracking-wider text-sm">Contextual Summary</h3>
+                          <h3 className="card-title">Contextual Summary</h3>
                         </div>
                         <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded-lg p-1">
                           <button
@@ -2930,8 +3048,8 @@ export default function App() {
                           </button>
                         </div>
                       </div>
-                      <div className="p-6">
-                        <div className={cn("prose prose-sm max-w-none leading-relaxed italic", theme === 'dark' ? "prose-invert text-zinc-300" : "text-zinc-900")}>
+                      <div className="p-6 sm:p-7">
+                        <div className={cn("prose prose-sm max-w-none leading-relaxed body-copy", theme === 'dark' ? "prose-invert text-zinc-300" : "text-zinc-700")}>
                           <Markdown>
                             {summaryLang === 'en' ? result.summaryEnglish : result.summaryUrdu}
                           </Markdown>
@@ -2940,33 +3058,47 @@ export default function App() {
                     </section>
 
                     {seoQuality && (
-                      <section className={cn("rounded-2xl overflow-hidden border", theme === 'dark' ? "bg-black border-white/10" : "bg-white border-zinc-200 shadow-sm")}>
-                        <div className={cn("p-5 sm:p-6 border-b flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between", theme === 'dark' ? "border-zinc-800" : "border-zinc-100")}>
+                      <section
+                        ref={seoScoreRef}
+                        data-scroll-reveal
+                        data-reveal-delay="100"
+                        className={cn("seo-card rounded-2xl overflow-hidden border", theme === 'dark' ? "bg-[#1a202c] border-zinc-700/70" : "bg-white border-zinc-200 shadow-sm")}
+                      >
+                        <div className={cn("p-5 sm:p-6 border-b flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between", theme === 'dark' ? "border-zinc-700/70" : "border-zinc-100")}>
                           <div className="flex items-center gap-3">
                             <Cpu className="text-blue-500 w-5 h-5" />
-                            <h3 className="font-bold uppercase tracking-wider text-sm">AI SEO Quality Score</h3>
+                            <h3 className="card-title">AI SEO Quality Score</h3>
                           </div>
-                          <div className={cn(
-                            "px-3 py-1 rounded-lg text-sm font-black",
-                            seoQuality.overall >= 80 ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" :
-                              seoQuality.overall >= 65 ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" :
-                                "bg-red-500/15 text-red-600 dark:text-red-400"
-                          )}>
-                            SCORE: {seoQuality.overall}/100
+                          <div className={cn("pill-label",
+                            seoQuality.overall >= 80 ? "text-emerald-600 dark:text-emerald-300" :
+                              seoQuality.overall >= 65 ? "text-amber-600 dark:text-amber-300" : "text-red-600 dark:text-red-300")}
+                          >
+                            SCORE: <CountUpNumber value={seoQuality.overall} trigger={seoScoreInView} />/100
                           </div>
                         </div>
-                        <div className="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className={cn("rounded-xl p-4 border", theme === 'dark' ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-zinc-50")}>
-                            <p className="text-[11px] uppercase font-bold tracking-wide text-zinc-500 mb-2">Title Strength</p>
-                            <p className="text-2xl font-black text-red-500">{seoQuality.titleStrength}</p>
+                        <div className="p-5 sm:p-6 grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5">
+                          <div className="score-orb-wrap">
+                            <div className="score-orb">
+                              <span className="score-orb-value"><CountUpNumber value={seoQuality.overall} trigger={seoScoreInView} /></span>
+                              <span className="score-orb-sub">Overall Score</span>
+                            </div>
                           </div>
-                          <div className={cn("rounded-xl p-4 border", theme === 'dark' ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-zinc-50")}>
-                            <p className="text-[11px] uppercase font-bold tracking-wide text-zinc-500 mb-2">Hashtag Diversity</p>
-                            <p className="text-2xl font-black text-emerald-500">{seoQuality.hashtagDiversity}</p>
-                          </div>
-                          <div className={cn("rounded-xl p-4 border", theme === 'dark' ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-zinc-50")}>
-                            <p className="text-[11px] uppercase font-bold tracking-wide text-zinc-500 mb-2">Policy Safety</p>
-                            <p className="text-2xl font-black text-blue-500">{seoQuality.policySafety}</p>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className={cn("score-subcard", theme === 'dark' ? "border-zinc-700/70 bg-zinc-900/50" : "border-zinc-200 bg-zinc-50") }>
+                              <p className="metric-label">Title Strength</p>
+                              <p className="metric-number text-red-500"><CountUpNumber value={seoQuality.titleStrength} trigger={seoScoreInView} /></p>
+                              <progress className="metric-progress" value={seoQuality.titleStrength} max={100} />
+                            </div>
+                            <div className={cn("score-subcard", theme === 'dark' ? "border-zinc-700/70 bg-zinc-900/50" : "border-zinc-200 bg-zinc-50") }>
+                              <p className="metric-label">Hashtag Diversity</p>
+                              <p className="metric-number text-emerald-500"><CountUpNumber value={seoQuality.hashtagDiversity} trigger={seoScoreInView} /></p>
+                              <progress className="metric-progress" value={seoQuality.hashtagDiversity} max={100} />
+                            </div>
+                            <div className={cn("score-subcard", theme === 'dark' ? "border-zinc-700/70 bg-zinc-900/50" : "border-zinc-200 bg-zinc-50") }>
+                              <p className="metric-label">Policy Safety</p>
+                              <p className="metric-number text-blue-500"><CountUpNumber value={seoQuality.policySafety} trigger={seoScoreInView} /></p>
+                              <progress className="metric-progress" value={seoQuality.policySafety} max={100} />
+                            </div>
                           </div>
                         </div>
                         <div className={cn("px-5 sm:px-6 pb-6", theme === 'dark' ? "text-zinc-300" : "text-zinc-700")}>
@@ -2983,13 +3115,13 @@ export default function App() {
                     )}
 
                     {/* SEO Section */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div data-scroll-reveal data-reveal-delay="150" className="grid grid-cols-1 md:grid-cols-2 gap-10">
                       {/* Titles */}
-                      <section className="rounded-2xl p-6 border border-zinc-200 dark:border-white/10 theme-aware-box">
+                      <section className="seo-card rounded-2xl p-6 sm:p-7 border border-zinc-200 dark:border-zinc-700/70 theme-aware-box">
                         <div className="flex items-center justify-between mb-6">
                           <div className="flex items-center gap-3">
                             <TrendingUp className="text-red-500 w-5 h-5" />
-                            <h3 className="font-bold uppercase tracking-wider text-sm">Viral Titles</h3>
+                            <h3 className="card-title">Viral Titles</h3>
                           </div>
                           <div className="flex items-center gap-4">
                             <FeedbackButtons section="titles" />
@@ -3006,12 +3138,12 @@ export default function App() {
                         <div className="space-y-3">
                           {result.titles?.map((title, i) => (
                             <div key={i} className={cn(
-                              "group relative border-2 border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 transition-all",
-                              theme === 'dark' ? "bg-black hover:border-red-500/50" : "bg-white hover:border-red-500/30"
+                              "group relative border-2 border-zinc-200 dark:border-zinc-700 rounded-2xl p-4 transition-all",
+                              theme === 'dark' ? "bg-zinc-900/50 hover:border-red-500/50" : "bg-white hover:border-red-500/30"
                             )}>
                               <p className={cn(
-                                "text-sm font-black pr-24 leading-relaxed",
-                                theme === 'dark' ? "text-white" : "text-black"
+                                "text-base font-medium pr-24 leading-relaxed body-copy",
+                                theme === 'dark' ? "text-zinc-100" : "text-zinc-800"
                               )}>
                                 {title}
                               </p>
@@ -3039,11 +3171,11 @@ export default function App() {
                       </section>
 
                       {/* Tags */}
-                      <section className="rounded-2xl p-6 border border-zinc-200 dark:border-white/10 theme-aware-box">
+                      <section className="seo-card rounded-2xl p-6 sm:p-7 border border-zinc-200 dark:border-zinc-700/70 theme-aware-box">
                         <div className="flex items-center justify-between mb-6">
                           <div className="flex items-center gap-3">
                             <Tag className="text-emerald-500 w-5 h-5" />
-                            <h3 className="font-bold uppercase tracking-wider text-sm">Hidden Tags</h3>
+                            <h3 className="card-title">Hidden Tags</h3>
                           </div>
                           <div className="flex items-center gap-4">
                             <FeedbackButtons section="tags" />
@@ -3060,10 +3192,10 @@ export default function App() {
                             </button>
                           </div>
                         </div>
-                        <div className={cn("rounded-2xl p-6 border border-zinc-200 dark:border-zinc-800 relative group shadow-sm dark:shadow-inner", theme === 'dark' ? "bg-black" : "bg-zinc-50/50")}>
+                        <div className={cn("rounded-2xl p-6 border border-zinc-200 dark:border-zinc-700 relative group shadow-sm dark:shadow-inner", theme === 'dark' ? "bg-zinc-900/45" : "bg-zinc-50/50")}>
                           <p className={cn(
-                            "text-xs font-mono font-bold leading-relaxed break-all",
-                            theme === 'dark' ? "text-zinc-400" : "text-zinc-800"
+                            "text-sm font-mono font-medium leading-relaxed break-all body-copy",
+                            theme === 'dark' ? "text-zinc-300" : "text-zinc-800"
                           )}>
                             {clampYoutubeTagsTo500(result.tags)}
                           </p>
@@ -3079,11 +3211,11 @@ export default function App() {
                     </div>
 
                     {/* Description */}
-                    <section className="glass-panel rounded-2xl overflow-hidden">
-                      <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
+                    <section data-scroll-reveal data-reveal-delay="200" className={cn("seo-card rounded-2xl overflow-hidden border", theme === 'dark' ? "bg-[#1a202c] border-zinc-700/70" : "bg-white border-zinc-200")}>
+                      <div className={cn("p-6 sm:p-7 border-b flex items-center justify-between", theme === 'dark' ? "border-zinc-700/70" : "border-zinc-100")}>
                         <div className="flex items-center gap-3">
                           <MessageSquare className="text-purple-500 w-5 h-5" />
-                          <h3 className="font-bold uppercase tracking-wider text-sm">Catchify Description</h3>
+                          <h3 className="card-title">Catchy Description</h3>
                         </div>
                         <div className="flex items-center gap-4">
                           <FeedbackButtons section="description" />
@@ -3116,8 +3248,8 @@ export default function App() {
                           </button>
                         </div>
                       </div>
-                      <div className={cn("p-6", theme === 'dark' ? "bg-black/50" : "bg-white")}>
-                        <div className={cn("prose prose-sm max-w-none font-bold", theme === 'dark' ? "prose-invert text-zinc-400" : "text-black")}>
+                      <div className={cn("p-6 sm:p-7", theme === 'dark' ? "bg-zinc-900/30" : "bg-white")}>
+                        <div className={cn("prose prose-sm max-w-none body-copy", theme === 'dark' ? "prose-invert text-zinc-300" : "text-zinc-700")}>
                           <Markdown>{result.description}</Markdown>
                         </div>
                       </div>
@@ -3125,7 +3257,7 @@ export default function App() {
 
                     {/* Shorts Clip Plan */}
                     <section className="pt-8 mb-4">
-                      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-5 mb-5 bg-zinc-50/60 dark:bg-zinc-950/60">
+                      <div className="generator-shell rounded-2xl p-5 sm:p-6 mb-6">
                         <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
                           <div className="w-full sm:w-64">
                             <label className={cn("block text-[10px] font-bold uppercase tracking-widest mb-1.5", theme === 'dark' ? "text-zinc-500" : "text-zinc-700")}>Total Short Duration (seconds)</label>
@@ -3155,7 +3287,7 @@ export default function App() {
                             {generatingClipPlan ? 'Generating...' : 'Generate Clip Plan'}
                           </button>
                         </div>
-                        <p className={cn("text-[10px] mt-2 font-mono uppercase tracking-wider", theme === 'dark' ? "text-zinc-500" : "text-zinc-700")}>
+                        <p className={cn("disclaimer-text text-[10px] mt-2 font-mono uppercase tracking-wider", theme === 'dark' ? "text-zinc-400" : "text-zinc-700")}>
                           Enter your target short duration first, then generate exact hook, middle, and end clip ranges.
                         </p>
                         {result?.shortsClipPlan?.length > 0 && (
@@ -3191,7 +3323,12 @@ export default function App() {
                                   initial={{ opacity: 0, x: -20 }}
                                   animate={{ opacity: 1, x: 0 }}
                                   transition={{ delay: 0.2 + (i * 0.1) }}
-                                  className="p-5 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border-2 border-emerald-500/40 hover:border-emerald-500/60 transition-colors space-y-3"
+                                  className={cn(
+                                    "p-5 rounded-2xl shadow-sm transition-all space-y-3 border",
+                                    theme === 'dark'
+                                      ? "bg-emerald-900/20 border-emerald-500/30 hover:border-emerald-400/45"
+                                      : "bg-white border-emerald-300/60 hover:border-emerald-400/80"
+                                  )}
                                 >
                                   {/* Segment Title */}
                                   <div className="flex items-center justify-between gap-3">
@@ -3220,7 +3357,7 @@ export default function App() {
                               );
                             })}
                           </div>
-                          <p className={cn("text-[11px] mt-3 font-mono uppercase tracking-wider px-3 py-2 rounded-lg border", theme === 'dark' ? "text-zinc-400 bg-zinc-900/50 border-zinc-800" : "text-emerald-700 bg-emerald-50 border-emerald-300/60")}>
+                          <p className={cn("disclaimer-text text-[11px] mt-3 font-mono uppercase tracking-wider px-3 py-2 rounded-lg border", theme === 'dark' ? "text-zinc-300 bg-zinc-900/50 border-zinc-800" : "text-emerald-700 bg-emerald-50 border-emerald-300/60")}>
                             ⏱️ EXACT YouTube timestamps - Go to video at each time and extract these clip ranges using CapCut
                           </p>
                         </>
@@ -3335,7 +3472,7 @@ export default function App() {
                           <button
                             onClick={() => handleGenerateThumbnailSuggestion('fresh')}
                             disabled={generatingThumbnails}
-                            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-wider"
+                            className="app-btn-primary inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-wider"
                           >
                             {generatingThumbnails ? (
                               <>
@@ -3381,7 +3518,7 @@ export default function App() {
                                 <button
                                   onClick={() => handleGenerateFinalThumbnail(thumbnailSuggestion)}
                                   disabled={generatingFinalThumbnail}
-                                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-red-600 text-white hover:bg-red-500 disabled:opacity-60"
+                                  className="app-btn-primary inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white disabled:opacity-60"
                                 >
                                   <Sparkles className="w-3.5 h-3.5" />
                                   {generatingFinalThumbnail ? 'Generating...' : 'Generate Professional Prompt'}
@@ -3413,7 +3550,7 @@ export default function App() {
                                 <div className="p-3 flex flex-wrap items-center gap-2 justify-between border-t border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-950">
                                   <button
                                     onClick={() => copyToClipboard(thumbnailPromptText, 'thumb-final-prompt')}
-                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-red-600 text-white hover:bg-red-500"
+                                    className="app-btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white"
                                   >
                                     {copiedField === 'thumb-final-prompt' ? (<>
                                       <Check className="w-3.5 h-3.5" />
@@ -3488,9 +3625,20 @@ export default function App() {
                 {/* Empty State */}
                 {
                   !result && !loading && !showSaved && !showApiSettings && !showHistory && (
-                    <div className="text-center py-20 opacity-20">
-                      <Shield className="w-20 h-20 mx-auto mb-4" />
-                      <p className="font-mono text-sm uppercase tracking-widest">Awaiting Input Signal...</p>
+                    <div className="idle-signal-wrap" aria-live="polite">
+                      <div className="idle-signal-core" aria-hidden="true">
+                        <span className="idle-signal-ring"></span>
+                        <span className="idle-signal-ring idle-signal-ring-delay"></span>
+                        <Shield className="idle-signal-icon" />
+                      </div>
+                      <p className="idle-signal-title">Awaiting Input Signal...</p>
+                      <p className="idle-signal-subtitle">Ready for your next video analysis command</p>
+                      <div className="idle-signal-bars" aria-hidden="true">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
                     </div>
                   )
                 }
@@ -3559,10 +3707,10 @@ export default function App() {
           <AnimatePresence>
             {faqOpen && (
               <motion.div
-                initial={{ opacity: 0, y: 20, scale: 0.97 }}
+                initial={{ opacity: 0, y: 24, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 18, scale: 0.97 }}
-                transition={{ duration: 0.22, ease: 'easeOut' }}
+                exit={{ opacity: 0, y: 22, scale: 0.95 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                 className={cn(
                   'faq-panel',
                   faqFullScreen && 'faq-panel-fullscreen',
@@ -3606,18 +3754,19 @@ export default function App() {
                 <div className="askbot-status-row" aria-label="Session status indicators">
                   <div className={cn('askbot-status-chip', askBotSessionTerminated ? 'askbot-status-chip-off' : 'askbot-status-chip-on')}>
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>{askBotSessionTerminated ? 'SESSION PAUSED' : 'SESSION ACTIVE'}</span>
+                    <span className="status-label">Session</span>
+                    <span className="status-value">{askBotSessionTerminated ? 'Paused' : 'Active'}</span>
                   </div>
                   <div className="askbot-status-chip">
-                    <Rows3 className="w-3.5 h-3.5" />
-                    <span>{askBotStrikeCount}/3 STRIKES</span>
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span className="status-label">Strikes</span>
+                    <span className="status-value">{askBotStrikeCount}/3</span>
                   </div>
                   <div className="askbot-status-chip askbot-capacity-chip">
                     <Gauge className="w-3.5 h-3.5" />
-                    <span>CAPACITY {askBotHourMessageCount}/{ASK_BOT_MAX_MESSAGES_PER_HOUR}</span>
-                    <span className="askbot-capacity-track" aria-hidden="true">
-                      <span className="askbot-capacity-fill" style={{ width: `${askBotCapacityPercent}%` }} />
-                    </span>
+                    <span className="status-label">Capacity</span>
+                    <span className="status-value">{askBotHourMessageCount}/{ASK_BOT_MAX_MESSAGES_PER_HOUR}</span>
+                    <progress className="askbot-capacity-track" value={askBotCapacityPercent} max={100} aria-hidden="true" />
                   </div>
                 </div>
 
@@ -3672,7 +3821,7 @@ export default function App() {
                   <button
                     onClick={() => askHelpAgent(faqQuery)}
                     disabled={helpAgentBusy || askBotSessionTerminated}
-                    className="faq-ask-btn"
+                    className="faq-ask-btn app-btn-primary"
                     aria-label="Send question to Assistance Hub"
                     title="Ask"
                   >
@@ -3727,7 +3876,7 @@ export default function App() {
               <span className="faq-fab-agent-icon" aria-hidden="true">
                 <Bot className="w-3.5 h-3.5" />
               </span>
-              <span className={cn(theme === 'dark' ? 'text-cyan-50' : 'text-sky-950')}>ASK AGENT RAW</span>
+              <span className="faq-fab-label">ASK AGENT RAW</span>
             </button>
 
             <button
@@ -3759,17 +3908,55 @@ export default function App() {
         </div>
 
         {/* Footer */}
-        <footer className="mt-20 border-t border-zinc-200 dark:border-zinc-900 py-12 px-4">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-500 text-xs font-mono">
-              <span>© 2026 DISPATCH RAW</span>
-              <span className="mx-2">•</span>
-              <span>FINAL PRODUCER APPROVED</span>
+        <footer className="mt-20 w-full px-3 sm:px-4 lg:px-5 pb-3 sm:pb-4">
+          <div className="dispatch-footer-shell dispatch-footer-fullbleed">
+            <div className="dispatch-footer-grid">
+              <div className="dispatch-footer-brand">
+                <div className="dispatch-footer-title-wrap">
+                  <span className="dispatch-footer-live-dot" aria-hidden="true" />
+                  <p className="dispatch-footer-kicker">COMMAND CHANNEL</p>
+                </div>
+                <h3 className="dispatch-footer-title">Dispatch Raw Control Deck</h3>
+                <p className="dispatch-footer-subtitle">
+                  Real-time creator intelligence with policy-safe acceleration, SEO precision, and tactical upload momentum.
+                </p>
+                <div className="dispatch-footer-badges">
+                  <span className="dispatch-footer-badge">Final Producer Approved</span>
+                  <span className="dispatch-footer-badge">Security Layer Active</span>
+                  <span className="dispatch-footer-badge">Growth Radar Locked</span>
+                </div>
+              </div>
+
+              <div className="dispatch-footer-metrics" aria-label="platform health">
+                <div className="dispatch-footer-metric-card">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span className="dispatch-footer-metric-label">Threat Shield</span>
+                  <strong className="dispatch-footer-metric-value">ACTIVE</strong>
+                </div>
+                <div className="dispatch-footer-metric-card">
+                  <Gauge className="w-4 h-4" />
+                  <span className="dispatch-footer-metric-label">Signal Latency</span>
+                  <strong className="dispatch-footer-metric-value">47ms</strong>
+                </div>
+                <div className="dispatch-footer-metric-card">
+                  <Activity className="w-4 h-4" />
+                  <span className="dispatch-footer-metric-label">Trend Engine</span>
+                  <strong className="dispatch-footer-metric-value">LIVE</strong>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-6">
-              <Shield className="w-5 h-5 text-zinc-400 dark:text-zinc-500" />
-              <Zap className="w-5 h-5 text-zinc-400 dark:text-zinc-500" />
-              <TrendingUp className="w-5 h-5 text-zinc-400 dark:text-zinc-500" />
+
+            <div className="dispatch-footer-bottom">
+              <div className="dispatch-footer-legal">
+                <span>© 2026 DISPATCH RAW</span>
+                <span className="dispatch-footer-separator">•</span>
+                <span>PRODUCER-GRADE OPERATIONS</span>
+              </div>
+              <div className="dispatch-footer-icons" aria-hidden="true">
+                <Shield className="w-4 h-4" />
+                <Zap className="w-4 h-4" />
+                <TrendingUp className="w-4 h-4" />
+              </div>
             </div>
           </div>
         </footer>
